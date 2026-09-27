@@ -9,6 +9,8 @@ Press **Ctrl + Alt + M** to mute or unmute the default microphone. Mic Control s
 <p align="center">
   <img src="imgs/settings.png" width="31%" alt="Mic Control settings window" />
   <img src="imgs/hotkey-editor.png" width="31%" alt="Hotkey editor" />
+</p>
+<p align="center">
   <img src="imgs/palettes.png" width="31%" alt="Mic Control color palettes" />
 </p>
 
