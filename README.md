@@ -1,8 +1,7 @@
-# Mic Control
+## Mic Control
+A tiny Windows mic toggle with a soft heart glow
 
-> A tiny Windows mic toggle with a soft heart glow. Lowkey useful, hopefully cute. ♡
-
-**v1.0.0** · Windows 10/11 · portable
+**v1.0.0** · Windows 10/11 · Portable
 
 Press **Ctrl + Alt + M** to mute or unmute the default microphone. Mic Control stays in the tray, can start with Windows, and gives you a little heart in the top-left so you always know the current state.
 
@@ -20,10 +19,7 @@ Press **Ctrl + Alt + M** to mute or unmute the default microphone. Mic Control s
 - Five glow palettes: Nebula, Aurora, Glacier, Ember, and Lunar.
 - Indicator size from 50% to 200%.
 - Custom hotkeys, tray controls, and optional launch at login.
-- No audio recording, no network calls, no setup arc.
 
 ### Run
 
 Open `MicControl.exe` and you are good to go. Settings are available from the tray icon.
-
-Made quietly by [@notyaffi](https://github.com/notyaffi)
