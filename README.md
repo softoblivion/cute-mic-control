@@ -1,29 +1,27 @@
 # Mic Control
 
-Tiny Windows mic toggle with a little heart glow indicator.
+> A tiny Windows mic toggle with a soft heart glow. Lowkey useful, hopefully cute. ♡
 
-Current version: **1.0.0**
+**v1.0.0** · Windows 10/11 · portable
 
-It lives in the tray, starts with Windows (optional), and shows a soft heart in the top-left when your default mic is on. , plus a 50–200% indicator size slider.
+Press **Ctrl + Alt + M** to mute or unmute the default microphone. Mic Control stays in the tray, can start with Windows, and gives you a little heart in the top-left so you always know the current state.
 
-App is portable, and I swear it does not record audio or send anything anywhere :3
+<p align="center">
+  <img src="imgs/settings.png" width="31%" alt="Mic Control settings window" />
+  <img src="imgs/hotkey-editor.png" width="31%" alt="Hotkey editor" />
+  <img src="imgs/palettes.png" width="31%" alt="Mic Control color palettes" />
+</p>
 
-## Run
+### Little features
 
-Open `MicControl.exe`. The default shortcut is `Ctrl + Alt + M`. Open Settings from the tray to change the shortcut, glow, size, palette or launch-at-login option.
+- Smooth heart pulse when the mic is on, broken heart when it is muted.
+- Five glow palettes: Nebula, Aurora, Glacier, Ember, and Lunar.
+- Indicator size from 50% to 200%.
+- Custom hotkeys, tray controls, and optional launch at login.
+- No audio recording, no network calls, no setup arc.
 
-## Build
+### Run
 
-On Windows PowerShell:
+Open `MicControl.exe` and you are good to go. Settings are available from the tray icon.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\build.ps1
-```
-
-The build uses the .NET Framework compiler already included with Windows.
-
-## Tiny note
-
-Fn keys and protected Windows shortcuts can be outside the app’s control. The app toggles the default Windows input device, so other apps need to use that same device.
-
-More detailed behavior and maintenance notes are in [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
+Made quietly by [@notyaffi](https://github.com/notyaffi)
