@@ -35,8 +35,14 @@ checksum file").
 
 ## 3. Check
 
-- When: on every launch (in the background, the window and hotkey work at once), every 6 hours while running,
-  15 minutes after a failed check, and on **Check for updates** (tray menu or settings window).
+- When: on every launch (in the background, the window and hotkey work at once), then every 5 minutes while the
+  app runs (a `DispatcherTimer` on the app dispatcher, so it keeps firing while the window is hidden in the tray),
+  and on **Check for updates** (tray menu or settings window). `UpdateSchedule.Wait(failures)` gives the wait:
+  5 minutes, doubled after every failed check (10, 20, 40) up to 60 minutes; the first check that ends in another
+  stage returns it to 5 minutes. A periodic tick is skipped, without counting as a failure, while Windows reports
+  no network connection (`InternetGetConnectedState`) and while an update is already downloaded and waits for the
+  restart. With **Download updates automatically** on (the default) a found version is downloaded at once; it is
+  installed only on **Restart to update**.
 - Source: `HEAD https://github.com/softoblivion/cute-mic-control/releases/latest` without following redirects;
   the tag is read from `Location: .../releases/tag/<tag>`. No API call, no API quota. No redirect or a 404 means
   "No release has been published yet".
@@ -80,7 +86,7 @@ and every `MicControl-<v>.exe(.part)` in `updates\` that is not newer than the r
 
 | Failure | Result |
 |---|---|
-| Offline, GitHub limit, no release | status `Error`, nothing on disk changes, retried after 15 minutes |
+| Offline, GitHub limit, no release | status `Error`, nothing on disk changes, retried with a growing wait (10, 20, 40, then 60 minutes), back to 5 minutes after the next successful check |
 | Missing asset or checksum | status `Error`, nothing downloaded |
 | Interrupted download, size or hash mismatch | `.part` deleted, status `Error`; the next attempt starts over |
 | File changed or vanished before apply | file deleted, status `Error`, the app keeps running |

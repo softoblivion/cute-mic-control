@@ -63,7 +63,7 @@ Run of 2026-10-21 (1.1.0 -> 1.1.1): check and download in under a second, swap a
 
 ## 6. Release procedure
 
-1. Bump `src\Version.cs` (all four version strings), write `docs\releases\vX.Y.Z.md`.
+1. Bump `src\Version.cs` (all version strings), write `docs\releases\vX.Y.Z.md`.
 2. `build\build.ps1`; run the self-test; for update-path changes the end-to-end test of section 5.
 3. Commit `Release vX.Y.Z` on `dev`, run the workspace pre-publish check, push, tag `vX.Y.Z`, push the tag.
 4. `gh release create vX.Y.Z release\MicControl.exe release\SHA256SUMS --title vX.Y.Z --notes-file docs\releases\vX.Y.Z.md`.

@@ -49,7 +49,7 @@ cute-mic-control\
 |---|---|---|---|
 | Startup and settings | `src\App.cs` | this file, section 5 | `Program.Main` routes `--apply-update` first, then the mutex `Local\MicControl.Glow.App` |
 | Runtime paths | `src\Paths.cs` | this file, section 5 | `AppPaths.Data`, `.Settings`, `.Updates`, `.SelfTest`; `MIC_CONTROL_HOME` override |
-| Self-update | `src\Updater.cs` | `docs\SELF_UPDATE.md` | `Updater`, `UpdateApply`, `SemVer`, `Checksums`, `WebNet` |
+| Self-update | `src\Updater.cs` | `docs\SELF_UPDATE.md` | `Updater`, `UpdateApply`, `UpdateSchedule`, `SemVer`, `Checksums`, `WebNet` |
 | Settings window and tray | `src\SettingsWindow.cs` | `docs\USER_GUIDE.md` | the only UI consumer of `Updater` |
 | Indicator and theme | `src\Theme.cs`, `src\Palettes.cs` | `docs\USER_GUIDE.md` | |
 | Hotkey | `src\Keyboard.cs` | `docs\USER_GUIDE.md` | `KeyEngine` is pure logic, covered by the self-test |
@@ -84,7 +84,7 @@ another version for tests without editing it (`-Version`, see `docs\BUILD.md`). 
 
 ## 7. Update flow (summary)
 
-Launch -> background check of GitHub Releases -> newer version found -> background download into
+Launch -> background check of GitHub Releases (repeated every 5 minutes, back-off up to 60 minutes after failures, skipped offline) -> newer version found -> background download into
 `updates\` (setting `autoDownloadUpdates`, default on) -> verified by size and SHA-256 -> tray balloon and menu item
 **Restart to update** -> on click the downloaded exe runs in apply mode, waits for this process to exit, swaps the
 exe and starts it in the tray -> the new instance removes `MicControl.exe.old` and shows "Updated to vX.Y.Z".

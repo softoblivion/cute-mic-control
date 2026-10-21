@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -51,6 +52,13 @@ static class Checksums {
     }
     internal static string Sha256File(string path) { using(SHA256 sha=SHA256.Create())using(FileStream f=File.OpenRead(path))return Hex(sha.ComputeHash(f)); }
     internal static string Hex(byte[] hash) { StringBuilder b=new StringBuilder(hash.Length*2); foreach(byte x in hash)b.Append(x.ToString("x2")); return b.ToString(); }
+}
+static class UpdateSchedule {
+    // Wait before the next periodic check: 5 minutes normally; after failed checks it doubles (10, 20, 40) up to 60 minutes.
+    internal static TimeSpan Wait(int failures) { int minutes=5; for(int i=0;i<failures&&minutes<60;i++)minutes*=2; return TimeSpan.FromMinutes(Math.Min(minutes,60)); }
+    // False while Windows reports no network connection (a periodic check is then skipped, not counted as a failure).
+    internal static bool HasConnection() { try { int flags; return InternetGetConnectedState(out flags,0); } catch { return true; } }
+    [DllImport("wininet.dll")] static extern bool InternetGetConnectedState(out int flags,int reserved);
 }
 enum NetFailure { Offline, Limit, NotFound, Other }
 class NetException : Exception { internal NetFailure Failure; internal NetException(NetFailure failure,string message) : base(message) { Failure=failure; } }
