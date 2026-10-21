@@ -1,6 +1,6 @@
 using System.Reflection;
 
-// Keep this value unchanged until the maintainer explicitly requests a release bump.
+// The single version source: build\build.ps1 and the UI read it from here. Change it only for a release.
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 [assembly: AssemblyInformationalVersion("1.0.0")]
@@ -15,5 +15,8 @@ namespace MicControl {
         internal const string AuthorTag = "softoblivion";
         internal const string DisplayVersion = "v1.0.0";
         internal const string ProductName = "Mic Control";
+        internal const string Repository = "softoblivion/cute-mic-control";
+        internal const string AssetName = "MicControl.exe";
+        internal const string ReleaseUrlVariable = "MIC_CONTROL_RELEASE_URL";
     }
 }

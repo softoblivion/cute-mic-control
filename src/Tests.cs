@@ -13,11 +13,12 @@ static class TestSuite {
     internal static void Run(SettingsWindow window) {
         DispatcherTimer timer=new DispatcherTimer { Interval=TimeSpan.FromSeconds(1.3) };
         timer.Tick+=delegate {
-            timer.Stop(); string folder=AppDomain.CurrentDomain.BaseDirectory;
+            timer.Stop(); string folder=AppPaths.SelfTest; Directory.CreateDirectory(folder);
             try {
-                Assert(AppInfo.Version=="1.0.0"&&AppInfo.DisplayVersion=="v1.0.0","version remains 1.0.0");
+                Assert(AppInfo.DisplayVersion=="v"+AppInfo.Version&&SemVer.Parse(AppInfo.Version)!=null,"version label matches Version.cs");
                 Assert(AppInfo.AuthorTag=="softoblivion","author tag");
-                Assert(AppInfo.ProductName=="Mic Control"&&Preferences.PathName.IndexOf("Mic Control",StringComparison.Ordinal)>=0,"project rename is complete");
+                Assert(AppInfo.ProductName=="Mic Control"&&AppInfo.AssetName=="MicControl.exe","product and release asset names");
+                Assert(Preferences.PathName==Path.Combine(AppPaths.Data,"settings.xml")&&(AppPaths.Redirected||AppPaths.Data==Path.Combine(AppPaths.ExeDirectory,"cute-mic-control_data")),"settings live in the portable data folder");
                 int count=0; KeyEngine e=new KeyEngine { Key=77,Modifiers=3,Fired=delegate { count++; } };
                 e.Feed(162,false); e.Feed(164,false); e.Feed(77,false); e.Feed(77,false); e.Feed(77,true); e.Feed(164,true); e.Feed(162,true); Assert(count==1,"combo and auto-repeat");
                 uint[] singles={27,32,123,160,162,164,91,96,179,44,186,4109};
@@ -32,10 +33,10 @@ static class TestSuite {
                 try {
                     File.WriteAllText(prefTest,"<MicMute modifiers=\"4\" key=\"123\" overlay=\"False\" />");
                     Preferences legacy=Preferences.Load(prefTest);
-                    Assert(legacy.Key==123&&legacy.Modifiers==4&&!legacy.Overlay&&legacy.IndicatorScale==100&&legacy.PaletteIndex==0,"legacy preferences migrate without losing bindings");
-                    legacy.IndicatorScale=175; legacy.PaletteIndex=4; legacy.Save(prefTest);
+                    Assert(legacy.Key==123&&legacy.Modifiers==4&&!legacy.Overlay&&legacy.IndicatorScale==100&&legacy.PaletteIndex==0&&legacy.AutoDownloadUpdates,"legacy preferences migrate without losing bindings");
+                    legacy.IndicatorScale=175; legacy.PaletteIndex=4; legacy.AutoDownloadUpdates=false; legacy.Save(prefTest);
                     Preferences restored=Preferences.Load(prefTest);
-                    Assert(restored.IndicatorScale==175&&restored.PaletteIndex==4&&restored.Key==123,"appearance persists after restart");
+                    Assert(restored.IndicatorScale==175&&restored.PaletteIndex==4&&restored.Key==123&&!restored.AutoDownloadUpdates,"appearance and update settings persist after restart");
                     File.WriteAllText(prefTest,"<MicControl modifiers=\"3\" key=\"77\" overlay=\"True\" indicatorScale=\"999\" palette=\"99\" />");
                     Preferences bounded=Preferences.Load(prefTest); Assert(bounded.IndicatorScale==200&&bounded.PaletteIndex==0,"invalid appearance values are bounded");
                 } finally { if(File.Exists(prefTest))File.Delete(prefTest); }
@@ -62,7 +63,7 @@ static class TestSuite {
                 window.OpenEditor();
                 DispatcherTimer second=new DispatcherTimer { Interval=TimeSpan.FromSeconds(.7) }; second.Tick+=delegate { second.Stop(); try {
                     Capture(window,Path.Combine(folder,"binding-preview.png")); Capture(active,Path.Combine(folder,"heart-active.png")); Capture(broken,Path.Combine(folder,"heart-muted.png")); Capture(paletteSheet,Path.Combine(folder,"palettes-preview.png"));
-                    File.WriteAllText(Path.Combine(folder,"self-test.txt"),"PASS: keyboard state machine, repeat suppression, solo modifiers, Win+F12, Esc, media, numpad/Num Enter, OEM, editor input; 248 selectable key codes.\r\nPASS: legacy preferences, appearance save/load, invalid values, live size slider and palette selection.\r\nPASS: low-level hook installation and cleanup.\r\nPASS: Core Audio read, settings toggle, original state restored; muted="+audio+"\r\nPASS: English settings, binding editor and all 5 palettes in both states.\r\n");
+                    File.WriteAllText(Path.Combine(folder,"self-test.txt"),"PASS: keyboard state machine, repeat suppression, solo modifiers, Win+F12, Esc, media, numpad/Num Enter, OEM, editor input; 248 selectable key codes.\r\nPASS: legacy preferences, appearance and update settings save/load, invalid values, live size slider and palette selection.\r\nPASS: low-level hook installation and cleanup.\r\nPASS: Core Audio read, settings toggle, original state restored; muted="+audio+"\r\nPASS: English settings, binding editor and all 5 palettes in both states.\r\n");
                 } catch(Exception ex) { File.WriteAllText(Path.Combine(folder,"self-test.txt"),ex.ToString()); } finally { window.Exit(); } }; second.Start();
             } catch(Exception ex) { File.WriteAllText(Path.Combine(folder,"self-test.txt"),ex.ToString()); window.Exit(); }
         }; timer.Start();
