@@ -122,8 +122,9 @@ data folder moves the whole installation.
 
 ## Updates
 
-- Checked on every start, every 6 hours while the app runs, and with **Check for updates** in the tray menu or in
-  Settings. A new version downloads in the background (switch **Download updates automatically**, on by default)
+- Checked on every start, then every 5 minutes while the app runs (also while the window is hidden in the tray), and
+  with **Check for updates** in the tray menu or in Settings. A failed check is retried after a growing wait, up to
+  an hour; nothing is checked while Windows reports no network connection. A new version downloads in the background (switch **Download updates automatically**, on by default)
   into `cute-mic-control_data\updates\` and is verified by byte size and SHA-256 against the `SHA256SUMS` asset of
   the release.
 - **Restart to update** (tray menu, Settings, or a click on the notification) closes the app; the downloaded exe

@@ -21,7 +21,7 @@ class SettingsWindow : Window {
     ToggleButton overlayToggle,startToggle; ListBox keyList; TextBox search; Button record; List<Button> modButtons=new List<Button>();
     internal Slider sizeSlider; internal List<Button> paletteButtons=new List<Button>(); TextBlock sizeText; bool appearanceDirty; int renderedPalette=-1;
     uint draftKey,draftMods; bool startup,quitting,ready,editing; bool? muted; bool initialized; readonly bool hidden;
-    Updater updater; DispatcherTimer updateTimer; Forms.ToolStripMenuItem checkItem,restartItem; TextBlock updateText; Button updateButton; ToggleButton autoUpdateToggle; bool readyAnnounced,balloonApplies;
+    Updater updater; DispatcherTimer updateTimer; Forms.ToolStripMenuItem checkItem,restartItem; TextBlock updateText; Button updateButton; ToggleButton autoUpdateToggle; bool readyAnnounced,balloonApplies; int updateFailures;
     internal SettingsWindow(bool startHidden) {
         hidden=startHidden; Prefs=Preferences.Load();
         Width=490; Height=Math.Min(810,SystemParameters.WorkArea.Height-24); WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent;
@@ -47,7 +47,7 @@ class SettingsWindow : Window {
             updater.AutoDownload=delegate { return Prefs.AutoDownloadUpdates; };
             updater.OnStatus=delegate(UpdateStatus s) { Dispatcher.BeginInvoke((Action)delegate { ShowUpdate(s); }); };
             updater.OnToast=delegate(string text) { Dispatcher.BeginInvoke((Action)delegate { Balloon(AppInfo.ProductName,text,false); }); };
-            updateTimer=new DispatcherTimer { Interval=TimeSpan.FromHours(6) }; updateTimer.Tick+=delegate { updateTimer.Interval=TimeSpan.FromHours(6); updater.CheckInBackground(); };
+            updateTimer=new DispatcherTimer { Interval=UpdateSchedule.Wait(0) }; updateTimer.Tick+=delegate { updateTimer.Interval=UpdateSchedule.Wait(updateFailures); if(UpdateSchedule.HasConnection() && updater.Status.Stage!=UpdateStage.Ready)updater.CheckInBackground(); };
         }
         poll=new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(500) }; poll.Tick+=delegate { RefreshAudio(); }; poll.Start();
         Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e) { if(!quitting) { e.Cancel=true; HideSettings(); } };
@@ -220,8 +220,8 @@ class SettingsWindow : Window {
         updateButton.Content=s.Stage==UpdateStage.Ready?"Restart to update":s.Stage==UpdateStage.Available?"Download":"Check for updates";
         checkItem.Text=s.Stage==UpdateStage.Available?"Download update":"Check for updates"; checkItem.Enabled=!busy&&s.Stage!=UpdateStage.Ready; restartItem.Visible=s.Stage==UpdateStage.Ready;
         if(s.Stage==UpdateStage.Ready && !readyAnnounced) { readyAnnounced=true; Balloon(AppInfo.ProductName+" "+s.Latest+" is ready","Click to restart and update.",true); }
-        // A failed check (often no network right after sign-in) is retried sooner than the 6-hour cycle.
-        if(s.Stage==UpdateStage.Error && updateTimer!=null) { updateTimer.Stop(); updateTimer.Interval=TimeSpan.FromMinutes(15); updateTimer.Start(); }
+        // The periodic check runs every 5 minutes; each failed check doubles the wait up to 60 minutes, the next check that ends in another stage restores 5 minutes.
+        if(updateTimer!=null && (s.Stage==UpdateStage.Error || (updateFailures>0 && (s.Stage==UpdateStage.UpToDate || s.Stage==UpdateStage.Available || s.Stage==UpdateStage.Ready)))) { updateFailures=s.Stage==UpdateStage.Error?updateFailures+1:0; updateTimer.Stop(); updateTimer.Interval=UpdateSchedule.Wait(updateFailures); updateTimer.Start(); }
     }
     void Balloon(string title,string text,bool applies) { if(quitting||!tray.Visible)return; balloonApplies=applies; tray.BalloonTipTitle=title; tray.BalloonTipText=text; tray.ShowBalloonTip(8000); }
     void ApplyUpdate() { if(updater==null||quitting)return; CommitAppearance(); if(updater.Apply())Exit(); }

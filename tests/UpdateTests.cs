@@ -32,6 +32,7 @@ static class UpdateTests {
             Run("swap: failed copy restores the previous exe",SwapRestore);
             Run("apply mode: waits for the stand-in, then swaps",ApplyModeRun);
             Run("data folder follows MIC_CONTROL_HOME",DataFolder);
+            Run("schedule: 5 minutes, doubling up to 60",Schedule);
         } finally { try { Directory.Delete(Path.GetDirectoryName(root),true); } catch { } }
         Console.WriteLine(passed+" passed, "+failed+" failed");
         return failed==0?0:1;
@@ -219,6 +220,11 @@ static class UpdateTests {
         Assert(UpdateApply.WaitForExit(int.MaxValue-7,TimeSpan.FromSeconds(1)),"a pid that does not exist counts as exited");
         using(Process slow=StandIn(Path.Combine(folder,"Slow.exe"),3000)) { Assert(!UpdateApply.WaitForExit(slow.Id,TimeSpan.FromMilliseconds(300)),"timeout reported"); slow.WaitForExit(10000); }
         Equal(1,UpdateApply.Run(new string[]{UpdateApply.Flag,"nope",target}),"bad arguments");
+    }
+    static void Schedule() {
+        Equal(TimeSpan.FromMinutes(5),UpdateSchedule.Wait(0),"no failure"); Equal(TimeSpan.FromMinutes(10),UpdateSchedule.Wait(1),"1 failure"); Equal(TimeSpan.FromMinutes(20),UpdateSchedule.Wait(2),"2 failures");
+        Equal(TimeSpan.FromMinutes(40),UpdateSchedule.Wait(3),"3 failures"); Equal(TimeSpan.FromMinutes(60),UpdateSchedule.Wait(4),"4 failures"); Equal(TimeSpan.FromMinutes(60),UpdateSchedule.Wait(500),"capped at 60");
+        Equal(TimeSpan.FromMinutes(5),UpdateSchedule.Wait(-3),"negative count"); UpdateSchedule.HasConnection();
     }
     static void DataFolder() {
         string previous=Environment.GetEnvironmentVariable(AppPaths.HomeVariable);
