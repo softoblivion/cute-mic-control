@@ -7,12 +7,12 @@ using System.Reflection;
 [assembly: AssemblyTitle("Mic Control")]
 [assembly: AssemblyProduct("Mic Control")]
 [assembly: AssemblyDescription("A tiny Windows microphone toggle with a heart glow.")]
-[assembly: AssemblyCompany("@softoblivion")]
+[assembly: AssemblyCompany("softoblivion")]
 
 namespace MicControl {
     internal static class AppInfo {
         internal const string Version = "1.0.0";
-        internal const string AuthorTag = "@softoblivion";
+        internal const string AuthorTag = "softoblivion";
         internal const string DisplayVersion = "v1.0.0";
         internal const string ProductName = "Mic Control";
     }

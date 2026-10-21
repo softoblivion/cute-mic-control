@@ -16,7 +16,7 @@ static class TestSuite {
             timer.Stop(); string folder=AppDomain.CurrentDomain.BaseDirectory;
             try {
                 Assert(AppInfo.Version=="1.0.0"&&AppInfo.DisplayVersion=="v1.0.0","version remains 1.0.0");
-                Assert(AppInfo.AuthorTag=="@softoblivion","author tag");
+                Assert(AppInfo.AuthorTag=="softoblivion","author tag");
                 Assert(AppInfo.ProductName=="Mic Control"&&Preferences.PathName.IndexOf("Mic Control",StringComparison.Ordinal)>=0,"project rename is complete");
                 int count=0; KeyEngine e=new KeyEngine { Key=77,Modifiers=3,Fired=delegate { count++; } };
                 e.Feed(162,false); e.Feed(164,false); e.Feed(77,false); e.Feed(77,false); e.Feed(77,true); e.Feed(164,true); e.Feed(162,true); Assert(count==1,"combo and auto-repeat");

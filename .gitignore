@@ -1,0 +1,16 @@
+# Build output and local state
+release/
+*.log
+*.tmp
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.nupkg
+
+# Runtime data when the exe runs from the project folder
+cute-mic-control_data/

@@ -6,11 +6,11 @@ A tiny Windows mic toggle with a soft heart glow
 Press **Ctrl + Alt + M** to mute or unmute the default microphone. Mic Control stays in the tray, can start with Windows, and gives you a little heart in the top-left so you always know the current state.
 
 <p align="center">
-  <img src="imgs/settings.png" width="31%" alt="Mic Control settings window" />
-  <img src="imgs/hotkey-editor.png" width="31%" alt="Hotkey editor" />
+  <img src="docs/assets/settings.png" width="31%" alt="Mic Control settings window" />
+  <img src="docs/assets/hotkey-editor.png" width="31%" alt="Hotkey editor" />
 </p>
 <p align="center">
-  <img src="imgs/palettes.png" width="31%" alt="Mic Control color palettes" />
+  <img src="docs/assets/palettes.png" width="31%" alt="Mic Control color palettes" />
 </p>
 
 ### Little features
