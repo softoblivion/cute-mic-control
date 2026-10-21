@@ -21,6 +21,7 @@ class SettingsWindow : Window {
     ToggleButton overlayToggle,startToggle; ListBox keyList; TextBox search; Button record; List<Button> modButtons=new List<Button>();
     internal Slider sizeSlider; internal List<Button> paletteButtons=new List<Button>(); TextBlock sizeText; bool appearanceDirty; int renderedPalette=-1;
     uint draftKey,draftMods; bool startup,quitting,ready,editing; bool? muted; bool initialized; readonly bool hidden;
+    Updater updater; DispatcherTimer updateTimer; Forms.ToolStripMenuItem checkItem,restartItem; TextBlock updateText; Button updateButton; ToggleButton autoUpdateToggle; bool readyAnnounced,balloonApplies;
     internal SettingsWindow(bool startHidden) {
         hidden=startHidden; Prefs=Preferences.Load();
         Width=490; Height=Math.Min(810,SystemParameters.WorkArea.Height-24); WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent;
@@ -34,8 +35,20 @@ class SettingsWindow : Window {
             Hook.Engine.Captured=delegate(uint mods,uint key) { Dispatcher.BeginInvoke((Action)delegate { Captured(mods,key); }); };
         }
         Forms.ContextMenuStrip menu=new Forms.ContextMenuStrip(); menu.BackColor=System.Drawing.Color.FromArgb(25,16,35); menu.ForeColor=System.Drawing.Color.FromArgb(245,228,255); menu.ShowImageMargin=false;
-        menu.Items.Add("Toggle microphone",null,delegate { Toggle(); }); menu.Items.Add("Settings",null,delegate { OpenSettings(); }); menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add("Quit",null,delegate { Exit(); });
+        menu.Items.Add("Toggle microphone",null,delegate { Toggle(); }); menu.Items.Add("Settings",null,delegate { OpenSettings(); }); menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add(new Forms.ToolStripMenuItem(AppInfo.ProductName+" "+AppInfo.DisplayVersion) { Enabled=false });
+        checkItem=new Forms.ToolStripMenuItem("Check for updates",null,delegate { UpdateAction(); }) { Enabled=!Program.Test }; menu.Items.Add(checkItem);
+        restartItem=new Forms.ToolStripMenuItem("Restart to update",null,delegate { ApplyUpdate(); }) { Visible=false }; menu.Items.Add(restartItem);
+        menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add("Quit",null,delegate { Exit(); });
         tray=new Forms.NotifyIcon { Text=AppInfo.ProductName,ContextMenuStrip=menu,Visible=!Program.Test }; tray.DoubleClick+=delegate { OpenSettings(); };
+        tray.BalloonTipClicked+=delegate { if(balloonApplies)ApplyUpdate(); };
+        if(!Program.Test) {
+            updater=new Updater(new UpdateConfig { Repo=AppInfo.Repository,AssetName=AppInfo.AssetName,AppName=AppInfo.ProductName,Version=AppInfo.Version,UpdatesDir=AppPaths.Updates,ExePath=AppPaths.ExePath,ReleaseUrlVariable=AppInfo.ReleaseUrlVariable },null);
+            updater.AutoDownload=delegate { return Prefs.AutoDownloadUpdates; };
+            updater.OnStatus=delegate(UpdateStatus s) { Dispatcher.BeginInvoke((Action)delegate { ShowUpdate(s); }); };
+            updater.OnToast=delegate(string text) { Dispatcher.BeginInvoke((Action)delegate { Balloon(AppInfo.ProductName,text,false); }); };
+            updateTimer=new DispatcherTimer { Interval=TimeSpan.FromHours(6) }; updateTimer.Tick+=delegate { updateTimer.Interval=TimeSpan.FromHours(6); updater.CheckInBackground(); };
+        }
         poll=new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(500) }; poll.Tick+=delegate { RefreshAudio(); }; poll.Start();
         Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e) { if(!quitting) { e.Cancel=true; HideSettings(); } };
         Deactivated+=delegate { if(Hook!=null)Hook.Engine.CancelCapture(); if(editing)SetRecording(false); };
@@ -43,7 +56,10 @@ class SettingsWindow : Window {
         Loaded+=delegate { if(!initialized) { initialized=true; shell.Opacity=0; TranslateTransform move=(TranslateTransform)shell.RenderTransform; move.Y=14; Theme.Fade(shell,1,.55); move.BeginAnimation(TranslateTransform.YProperty,Theme.Motion(0,.65)); } };
         RefreshAudio(); ready=true;
     }
-    internal void Start() { if(!hidden)Show(); if(Prefs.Overlay)overlay.Show(); }
+    internal void Start() {
+        if(!hidden)Show(); if(Prefs.Overlay)overlay.Show();
+        if(updater!=null) { updater.Startup(); updater.CheckInBackground(); updateTimer.Start(); }
+    }
     static Border Line() { return new Border { Height=1,Background=Theme.Brush("#2A1F34"),Margin=new Thickness(0,21,0,21) }; }
     void Build() {
         root=new Grid { Margin=new Thickness(12) }; Content=root;
@@ -79,6 +95,10 @@ class SettingsWindow : Window {
         overlayToggle=SwitchRow(stack,"Indicator",Prefs.Overlay); overlayToggle.Click+=delegate { if(!ready)return; bool previous=Prefs.Overlay; Prefs.Overlay=overlayToggle.IsChecked==true; try { Prefs.Save(); if(Prefs.Overlay)overlay.Show(); else overlay.Hide(); } catch { Prefs.Overlay=previous; overlayToggle.IsChecked=previous; Error("Could not save settings. Check folder permissions."); } };
         BuildAppearance(stack);
         startup=IsStartup(); startToggle=SwitchRow(stack,"Launch at login",startup); startToggle.Click+=delegate { if(!ready)return; try { using(RegistryKey k=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) { if(startToggle.IsChecked==true) { k.SetValue("MicControlGlow","\""+Assembly.GetExecutingAssembly().Location+"\" --startup"); k.DeleteValue("MicMuteGlow",false); } else { k.DeleteValue("MicControlGlow",false); k.DeleteValue("MicMuteGlow",false); } startup=startToggle.IsChecked==true; } } catch { startToggle.IsChecked=startup; Error("Could not update launch at login. Check your Windows permissions."); } };
+        autoUpdateToggle=SwitchRow(stack,"Download updates automatically",Prefs.AutoDownloadUpdates); autoUpdateToggle.Click+=delegate { if(!ready)return; bool previous=Prefs.AutoDownloadUpdates; Prefs.AutoDownloadUpdates=autoUpdateToggle.IsChecked==true; try { Prefs.Save(); } catch { Prefs.AutoDownloadUpdates=previous; autoUpdateToggle.IsChecked=previous; Error("Could not save settings. Check folder permissions."); return; } if(Prefs.AutoDownloadUpdates && updater!=null && updater.Status.Stage==UpdateStage.Available)updater.DownloadInBackground(); };
+        Grid updateRow=new Grid { MinHeight=44 }; updateRow.ColumnDefinitions.Add(new ColumnDefinition()); updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width=GridLength.Auto });
+        updateText=Theme.Label(Program.Test?"Updates are not checked in the self-test":"Updates are not checked yet",11,Theme.Muted); updateText.TextWrapping=TextWrapping.Wrap; updateText.Margin=new Thickness(0,0,12,0); updateRow.Children.Add(updateText);
+        updateButton=new Button { Content="Check for updates",Height=34,FontSize=11,Padding=new Thickness(12,5,12,5),HorizontalContentAlignment=HorizontalAlignment.Center,IsEnabled=!Program.Test }; updateButton.Click+=delegate { UpdateAction(); }; Grid.SetColumn(updateButton,1); updateRow.Children.Add(updateButton); stack.Children.Add(updateRow);
         feedback=Theme.Label("",11,Theme.Brush("#EF9DC9")); feedback.TextWrapping=TextWrapping.Wrap; feedback.Margin=new Thickness(0,6,0,0); feedback.MaxHeight=35; stack.Children.Add(feedback);
         Grid footer=new Grid { VerticalAlignment=VerticalAlignment.Bottom,Height=44,Margin=new Thickness(30,0,27,8) }; content.Children.Add(footer);
         StackPanel meta=new StackPanel { VerticalAlignment=VerticalAlignment.Center };
@@ -190,8 +210,23 @@ class SettingsWindow : Window {
         }
     }
     static bool IsStartup() { try { using(RegistryKey k=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))return k!=null&&(k.GetValue("MicControlGlow")!=null||k.GetValue("MicMuteGlow")!=null); } catch { return false; } }
+    void UpdateAction() {
+        if(updater==null)return; UpdateStage stage=updater.Status.Stage;
+        if(stage==UpdateStage.Ready)ApplyUpdate(); else if(stage==UpdateStage.Available)updater.DownloadInBackground(); else updater.CheckInBackground();
+    }
+    void ShowUpdate(UpdateStatus s) {
+        bool busy=s.Stage==UpdateStage.Checking||s.Stage==UpdateStage.Downloading;
+        updateText.Text=s.Message; updateButton.IsEnabled=!busy;
+        updateButton.Content=s.Stage==UpdateStage.Ready?"Restart to update":s.Stage==UpdateStage.Available?"Download":"Check for updates";
+        checkItem.Text=s.Stage==UpdateStage.Available?"Download update":"Check for updates"; checkItem.Enabled=!busy&&s.Stage!=UpdateStage.Ready; restartItem.Visible=s.Stage==UpdateStage.Ready;
+        if(s.Stage==UpdateStage.Ready && !readyAnnounced) { readyAnnounced=true; Balloon(AppInfo.ProductName+" "+s.Latest+" is ready","Click to restart and update.",true); }
+        // A failed check (often no network right after sign-in) is retried sooner than the 6-hour cycle.
+        if(s.Stage==UpdateStage.Error && updateTimer!=null) { updateTimer.Stop(); updateTimer.Interval=TimeSpan.FromMinutes(15); updateTimer.Start(); }
+    }
+    void Balloon(string title,string text,bool applies) { if(quitting||!tray.Visible)return; balloonApplies=applies; tray.BalloonTipTitle=title; tray.BalloonTipText=text; tray.ShowBalloonTip(8000); }
+    void ApplyUpdate() { if(updater==null||quitting)return; CommitAppearance(); if(updater.Apply())Exit(); }
     void HideSettings() { CommitAppearance(); CloseEditor(); Hide(); }
     void OpenSettings() { Show(); WindowState=WindowState.Normal; Activate(); shell.BeginAnimation(OpacityProperty,null); shell.Opacity=1; }
-    internal void Exit() { if(quitting)return; quitting=true; CommitAppearance(); poll.Stop(); if(Hook!=null)Hook.Dispose(); overlay.Close(); tray.Visible=false; tray.ContextMenuStrip.Dispose(); tray.Dispose(); if(trayIcon!=null)trayIcon.Dispose(); Close(); Application.Current.Shutdown(); }
+    internal void Exit() { if(quitting)return; quitting=true; CommitAppearance(); poll.Stop(); if(updateTimer!=null)updateTimer.Stop(); if(Hook!=null)Hook.Dispose(); overlay.Close(); tray.Visible=false; tray.ContextMenuStrip.Dispose(); tray.Dispose(); if(trayIcon!=null)trayIcon.Dispose(); Close(); Application.Current.Shutdown(); }
 }
 }
