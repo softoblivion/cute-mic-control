@@ -17,7 +17,8 @@ namespace MicControl {
 // OnStatus / OnToast and marshals to its own thread; the unit tests in tests\ run this file without a window.
 enum UpdateStage { Idle, Checking, UpToDate, Available, Downloading, Ready, Error }
 class UpdateStatus {
-    internal UpdateStage Stage=UpdateStage.Idle; internal string Current,Latest,Message="Updates are not checked yet"; internal long Size=-1; internal double Progress; internal bool CanApply;
+    // Notes: Markdown body of the release (null when the source has none); PublishedAt: epoch seconds, -1 unknown.
+    internal UpdateStage Stage=UpdateStage.Idle; internal string Current,Latest,Notes,Message="Updates are not checked yet"; internal long Size=-1,PublishedAt=-1; internal double Progress; internal bool CanApply;
     internal UpdateStatus Copy() { return (UpdateStatus)MemberwiseClone(); }
 }
 class UpdateConfig {
@@ -25,7 +26,7 @@ class UpdateConfig {
     internal string Stem { get { return Path.GetFileNameWithoutExtension(AssetName); } }
     internal string Extension { get { return Path.GetExtension(AssetName); } }
 }
-class Release { internal string Tag,Version,AssetUrl,SumsUrl; internal long Size=-1; }
+class Release { internal string Tag,Version,AssetUrl,SumsUrl,Notes; internal long Size=-1,PublishedAt=-1; }
 static class SemVer {
     // Numeric X.Y.Z prefix of a tag ("v1.2.3-beta.1" -> 1,2,3); missing parts are zero; null when no digits lead.
     internal static int[] Parse(string text) {
@@ -66,6 +67,7 @@ interface IUpdateNet {
     string RedirectLocation(string url);   // HEAD without following redirects; null when the answer is not a redirect
     long ContentLength(string url);        // HEAD following redirects; -1 when unknown
     string GetText(string url);
+    string GetText(string url,IDictionary<string,string> headers); // GET with extra request headers ("Accept" included)
     string Download(string url,string destination,Action<long,long> progress); // streams to destination, returns SHA-256 hex
 }
 class WebNet : IUpdateNet {
@@ -98,8 +100,14 @@ class WebNet : IUpdateNet {
         });
     }
     public long ContentLength(string url) { return Retry(delegate { using(HttpWebResponse r=(HttpWebResponse)Create(url,"HEAD",true).GetResponse())return r.ContentLength; }); }
-    public string GetText(string url) {
-        return Retry(delegate { using(HttpWebResponse r=(HttpWebResponse)Create(url,"GET",true).GetResponse())using(StreamReader s=new StreamReader(r.GetResponseStream(),Encoding.UTF8))return s.ReadToEnd(); });
+    public string GetText(string url) { return GetText(url,null); }
+    public string GetText(string url,IDictionary<string,string> headers) {
+        return Retry(delegate {
+            HttpWebRequest q=Create(url,"GET",true);
+            // Accept is a restricted header of HttpWebRequest: it is set through the property, the others through Headers.
+            if(headers!=null)foreach(KeyValuePair<string,string> h in headers) { if(string.Equals(h.Key,"Accept",StringComparison.OrdinalIgnoreCase))q.Accept=h.Value; else q.Headers[h.Key]=h.Value; }
+            using(HttpWebResponse r=(HttpWebResponse)q.GetResponse())using(StreamReader s=new StreamReader(r.GetResponseStream(),Encoding.UTF8))return s.ReadToEnd();
+        });
     }
     public string Download(string url,string destination,Action<long,long> progress) {
         try {
@@ -141,6 +149,7 @@ class Updater {
         lock(gate) {
             status.Stage=stage; status.Message=message; status.Progress=progress;
             status.Latest=release!=null?release.Version:null; status.Size=release!=null?release.Size:-1;
+            status.Notes=release!=null?release.Notes:null; status.PublishedAt=release!=null?release.PublishedAt:-1;
             status.CanApply=stage==UpdateStage.Ready&&!string.IsNullOrEmpty(config.ExePath); copy=status.Copy();
         }
         Action<UpdateStatus> handler=OnStatus; if(handler!=null) { try { handler(copy); } catch { } }
@@ -177,11 +186,20 @@ class Updater {
     }
     Release Resolve() {
         string overrideUrl=string.IsNullOrEmpty(config.ReleaseUrlVariable)?null:Environment.GetEnvironmentVariable(config.ReleaseUrlVariable);
-        Release r=string.IsNullOrEmpty(overrideUrl)?FromRedirect():FromDocument(overrideUrl);
+        Release r=string.IsNullOrEmpty(overrideUrl)?(FromApi()??FromRedirect()):FromDocument(overrideUrl);
         int[] v=SemVer.Parse(r.Tag); if(v==null)throw new UpdateError(Messages.BadVersion);
         r.Version=SemVer.Format(v); return r;
     }
-    // Default source: HEAD /releases/latest redirects to /releases/tag/<tag>; no API quota is used.
+    internal string ApiUrl { get { return "https://api.github.com/repos/"+config.Repo+"/releases/latest"; } }
+    static readonly Dictionary<string,string> ApiHeaders=new Dictionary<string,string> { { "Accept","application/vnd.github+json" },{ "X-GitHub-Api-Version","2022-11-28" } };
+    // First source: the latest-release API document (tag, assets with sizes, release notes, date). Any failure (403 /
+    // 429 of the unauthenticated quota, no answer, a document without a tag) returns null and the redirect is used.
+    Release FromApi() {
+        string text;
+        try { text=net.GetText(ApiUrl,ApiHeaders); } catch(Exception) { return null; }
+        return Parse(text);
+    }
+    // Fallback source: HEAD /releases/latest redirects to /releases/tag/<tag>; no API quota is used, no notes, no date.
     Release FromRedirect() {
         string location;
         try { location=net.RedirectLocation("https://github.com/"+config.Repo+"/releases/latest"); }
@@ -198,19 +216,32 @@ class Updater {
         string text;
         try { text=net.GetText(url); }
         catch(NetException e) { if(e.Failure==NetFailure.Offline)throw; throw new UpdateError(Messages.NoRelease); }
-        Dictionary<string,object> doc;
-        try { doc=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(text); } catch { throw new UpdateError(Messages.NoRelease); }
-        object tag; if(doc==null||!doc.TryGetValue("tag_name",out tag)||!(tag is string))throw new UpdateError(Messages.NoRelease);
-        Release r=new Release { Tag=(string)tag }; object assets;
-        if(doc.TryGetValue("assets",out assets)&&assets is IEnumerable) {
-            foreach(object item in (IEnumerable)assets) {
-                Dictionary<string,object> a=item as Dictionary<string,object>; if(a==null)continue;
-                object name,link,size; if(!a.TryGetValue("name",out name)||!a.TryGetValue("browser_download_url",out link))continue;
-                if(string.Equals(name as string,config.AssetName,StringComparison.OrdinalIgnoreCase)) { r.AssetUrl=link as string; if(a.TryGetValue("size",out size)&&size!=null)r.Size=Convert.ToInt64(size,CultureInfo.InvariantCulture); }
-                else if(string.Equals(name as string,config.SumsName,StringComparison.OrdinalIgnoreCase))r.SumsUrl=link as string;
+        Release r=Parse(text); if(r==null)throw new UpdateError(Messages.NoRelease); return r;
+    }
+    // The GitHub "latest release" document: tag_name, body (notes), published_at, assets[].name / size /
+    // browser_download_url. Null when the text is not such a document.
+    Release Parse(string text) {
+        try {
+            Dictionary<string,object> doc=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(text);
+            object tag; if(doc==null||!doc.TryGetValue("tag_name",out tag)||!(tag is string))return null;
+            Release r=new Release { Tag=(string)tag }; object value;
+            if(doc.TryGetValue("body",out value)) { string notes=value as string; if(!string.IsNullOrWhiteSpace(notes))r.Notes=notes; }
+            if(doc.TryGetValue("published_at",out value))r.PublishedAt=EpochSeconds(value as string);
+            if(doc.TryGetValue("assets",out value)&&value is IEnumerable) {
+                foreach(object item in (IEnumerable)value) {
+                    Dictionary<string,object> a=item as Dictionary<string,object>; if(a==null)continue;
+                    object name,link,size; if(!a.TryGetValue("name",out name)||!a.TryGetValue("browser_download_url",out link))continue;
+                    if(string.Equals(name as string,config.AssetName,StringComparison.OrdinalIgnoreCase)) { r.AssetUrl=link as string; if(a.TryGetValue("size",out size)&&size!=null)r.Size=Convert.ToInt64(size,CultureInfo.InvariantCulture); }
+                    else if(string.Equals(name as string,config.SumsName,StringComparison.OrdinalIgnoreCase))r.SumsUrl=link as string;
+                }
             }
-        }
-        return r;
+            return r;
+        } catch(Exception) { return null; }
+    }
+    // ISO 8601 ("2026-10-21T10:00:00Z") -> seconds since 1970-01-01 UTC; -1 when missing or unreadable.
+    internal static long EpochSeconds(string iso) {
+        DateTime at; if(string.IsNullOrEmpty(iso)||!DateTime.TryParse(iso,CultureInfo.InvariantCulture,DateTimeStyles.AdjustToUniversal|DateTimeStyles.AssumeUniversal,out at))return -1;
+        return (long)(at-new DateTime(1970,1,1,0,0,0,DateTimeKind.Utc)).TotalSeconds;
     }
     string ExpectedSha(Release r) {
         if(r.SumsUrl==null)throw new UpdateError(Messages.NoChecksum);

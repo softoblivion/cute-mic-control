@@ -42,18 +42,19 @@ Steps: compile `tests\UpdateTests.cs` with `src\Updater.cs`, `src\Paths.cs`, `sr
 | Variable | Effect |
 |---|---|
 | `MIC_CONTROL_HOME` | data folder instead of `cute-mic-control_data\` beside the exe; also disables the import of 1.0.0 profile settings |
-| `MIC_CONTROL_RELEASE_URL` | URL of a JSON document in the GitHub "latest release" format (`tag_name`, `assets[].name`, `assets[].size`, `assets[].browser_download_url`); replaces the GitHub check for update tests. 404 or unreadable -> "No release has been published yet", server down -> "No internet connection" |
+| `MIC_CONTROL_RELEASE_URL` | URL of a JSON document in the GitHub "latest release" format (`tag_name`, `body` (release notes, optional), `published_at` (optional), `assets[].name`, `assets[].size`, `assets[].browser_download_url`); replaces the GitHub check (API and redirect) for update tests. 404 or unreadable -> "No release has been published yet", server down -> "No internet connection" |
 
 ## 5. End-to-end update test (before every release that touches the update path)
 
 1. `build\build.ps1` (version N in `release\`), then `build\build.ps1 -Version <N+1> -OutDir <scratch>\server -SkipTests`.
 2. In `<scratch>\server` write `latest.json`:
-   `{"tag_name":"v<N+1>","assets":[{"name":"MicControl.exe","size":<bytes>,"browser_download_url":"http://127.0.0.1:8765/MicControl.exe"},{"name":"SHA256SUMS","browser_download_url":"http://127.0.0.1:8765/SHA256SUMS"}]}`.
+   `{"tag_name":"v<N+1>","body":"## What is new\n- A **bold** item","published_at":"2026-10-21T10:00:00Z","assets":[{"name":"MicControl.exe","size":<bytes>,"browser_download_url":"http://127.0.0.1:8765/MicControl.exe"},{"name":"SHA256SUMS","browser_download_url":"http://127.0.0.1:8765/SHA256SUMS"}]}`.
 3. `python -m http.server 8765 --bind 127.0.0.1 --directory <scratch>\server`.
 4. Copy `release\MicControl.exe` into an empty folder with a space in its name, set
    `MIC_CONTROL_RELEASE_URL=http://127.0.0.1:8765/latest.json` (and no `MIC_CONTROL_HOME`, so the real portable
-   folder is used), start it, wait for "Version N+1 is ready to install", note the hash of `settings.xml`, press
-   **Restart to update**.
+   folder is used), start it; the update window opens with the notes, the size and the date and the download runs
+   to **Restart to update** ("Version N+1 is ready to install" in Settings); note the hash of `settings.xml`, press
+   **Restart to update** in the update window.
 5. Assert: the old process exits, `MicControl.exe` in the same folder now has file version N+1 and runs with
    `--startup`, `MicControl.exe.old` is gone within about 15 s, `updates\` holds only `apply.log`, `settings.xml`
    is unchanged, no console window and no `cmd.exe` child appeared, `apply.log` shows wait / swapped / started.

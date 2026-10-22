@@ -21,6 +21,8 @@ static class UpdateTests {
             Run("check: same or older release is up to date",CheckUpToDate);
             Run("check: offline, limit, no release, bad tag, missing asset",CheckErrors);
             Run("check: release document override",CheckOverride);
+            Run("check: API document gives notes, date and size",CheckApiNotes);
+            Run("check: API limit, garbage or no tag falls back to the redirect",CheckApiFallback);
             Run("download: verified file becomes ready",DownloadReady);
             Run("download: checksum mismatch and missing checksum",DownloadErrors);
             Run("check: verified earlier download is ready at once",AlreadyDownloaded);
@@ -48,11 +50,15 @@ static class UpdateTests {
 
     class FakeNet : IUpdateNet {
         internal string Location; internal Dictionary<string,object> Texts=new Dictionary<string,object>(),Files=new Dictionary<string,object>(),Lengths=new Dictionary<string,object>();
-        internal Exception RedirectError;
+        internal Exception RedirectError; internal string Accept,ApiVersion; internal int Redirects;
         static object Take(Dictionary<string,object> map,string url) { object value; if(!map.TryGetValue(url,out value))throw new NetException(NetFailure.NotFound,"HTTP 404"); Exception e=value as Exception; if(e!=null)throw e; return value; }
-        public string RedirectLocation(string url) { if(RedirectError!=null)throw RedirectError; Equal("https://github.com/softoblivion/cute-mic-control/releases/latest",url,"latest URL"); return Location; }
+        public string RedirectLocation(string url) { Redirects++; if(RedirectError!=null)throw RedirectError; Equal("https://github.com/softoblivion/cute-mic-control/releases/latest",url,"latest URL"); return Location; }
         public long ContentLength(string url) { return (long)Take(Lengths,url); }
         public string GetText(string url) { return (string)Take(Texts,url); }
+        public string GetText(string url,IDictionary<string,string> headers) {
+            string value; if(headers!=null) { if(headers.TryGetValue("Accept",out value))Accept=value; if(headers.TryGetValue("X-GitHub-Api-Version",out value))ApiVersion=value; }
+            return (string)Take(Texts,url);
+        }
         public string Download(string url,string destination,Action<long,long> progress) {
             byte[] data=Encoding.UTF8.GetBytes((string)Take(Files,url)); File.WriteAllBytes(destination,data);
             if(progress!=null) { progress(data.Length/2,data.Length); progress(data.Length,data.Length); }
@@ -60,6 +66,11 @@ static class UpdateTests {
         }
     }
     const string Base="https://github.com/softoblivion/cute-mic-control/releases/download/v1.2.0/";
+    const string Api="https://api.github.com/repos/softoblivion/cute-mic-control/releases/latest";
+    // A latest-release API document for v1.2.0 with the assets of Published(); body and date are JSON fragments.
+    static string ApiDoc(string body,string publishedAt,long size) {
+        return "{\"tag_name\":\"v1.2.0\",\"body\":"+body+(publishedAt!=null?",\"published_at\":"+publishedAt:"")+",\"assets\":[{\"name\":\"MicControl.exe\",\"size\":"+size+",\"browser_download_url\":\""+Base+"MicControl.exe\"},{\"name\":\"SHA256SUMS\",\"size\":81,\"browser_download_url\":\""+Base+"SHA256SUMS\"}]}";
+    }
     static FakeNet Published(string content) {
         FakeNet net=new FakeNet { Location="https://github.com/softoblivion/cute-mic-control/releases/tag/v1.2.0" };
         net.Lengths[Base+"MicControl.exe"]=(long)Encoding.UTF8.GetByteCount(content);
@@ -125,6 +136,31 @@ static class UpdateTests {
             net.Texts.Remove(doc); u.Check(); Equal(Updater.Messages.NoRelease,u.Status.Message,"404 document");
             net.Texts[doc]=new NetException(NetFailure.Offline,"ConnectFailure"); u.Check(); Equal(Updater.Messages.Offline,u.Status.Message,"server down");
         } finally { Environment.SetEnvironmentVariable("MIC_CONTROL_TEST_RELEASE_URL",null); }
+    }
+    static void CheckApiNotes() {
+        FakeNet net=Published("new build"); net.Lengths.Clear(); net.RedirectError=new Exception("the redirect must not be used when the API answers");
+        net.Texts[Api]=ApiDoc("\"## What is new\\r\\n- A **bold** item\"","\"2026-10-21T10:00:00Z\"",9);
+        Updater u=Make(net,Folder("api"),"1.1.0"); u.Check(); UpdateStatus st=u.Status;
+        Equal(UpdateStage.Available,st.Stage,"stage"); Equal("1.2.0",st.Latest,"latest"); Equal(9L,st.Size,"size from the document");
+        Equal("## What is new\r\n- A **bold** item",st.Notes,"notes"); Equal(1792576800L,st.PublishedAt,"published_at as epoch seconds");
+        Equal("application/vnd.github+json",net.Accept,"Accept header"); Equal("2022-11-28",net.ApiVersion,"API version header"); Equal(0,net.Redirects,"no redirect request");
+        u.Download(); Equal(UpdateStage.Ready,u.Status.Stage,"download from the API asset URL"); Equal(st.Notes,u.Status.Notes,"notes kept at ready"); Equal(1792576800L,u.Status.PublishedAt,"date kept at ready");
+        net.Texts[Api]=ApiDoc("null",null,9); u=Make(net,Folder("api empty"),"1.1.0"); u.Check();
+        Equal(UpdateStage.Available,u.Status.Stage,"no notes, no date"); Assert(u.Status.Notes==null,"null body -> no notes"); Equal(-1L,u.Status.PublishedAt,"missing date");
+        net.Texts[Api]=ApiDoc("\"  \\r\\n \"","\"yesterday\"",9); u.Check(); Assert(u.Status.Notes==null,"blank body -> no notes"); Equal(-1L,u.Status.PublishedAt,"unreadable date");
+        Equal(Updater.EpochSeconds("1970-01-01T00:00:00Z"),0L,"epoch zero");
+    }
+    static void CheckApiFallback() {
+        FakeNet net=Published("new build"); net.Texts[Api]=new NetException(NetFailure.Limit,"HTTP 403"); Updater u=Make(net,Folder("api fallback"),"1.1.0");
+        u.Check(); UpdateStatus st=u.Status;
+        Equal(UpdateStage.Available,st.Stage,"403 -> redirect"); Equal("1.2.0",st.Latest,"latest from the redirect"); Equal(9L,st.Size,"size from HEAD");
+        Assert(st.Notes==null,"no notes from the redirect"); Equal(-1L,st.PublishedAt,"no date from the redirect"); Equal(1,net.Redirects,"redirect used once");
+        net.Texts[Api]=new NetException(NetFailure.Limit,"HTTP 429"); u.Check(); Equal(UpdateStage.Available,u.Status.Stage,"429 -> redirect");
+        net.Texts[Api]="<!doctype html><title>error</title>"; u.Check(); Equal(UpdateStage.Available,u.Status.Stage,"garbage -> redirect"); Assert(u.Status.Notes==null,"garbage gives no notes");
+        net.Texts[Api]="{\"message\":\"Not Found\"}"; u.Check(); Equal(UpdateStage.Available,u.Status.Stage,"document without a tag -> redirect");
+        net.Texts[Api]="[1,2]"; u.Check(); Equal(UpdateStage.Available,u.Status.Stage,"array -> redirect"); Equal(5,net.Redirects,"every failure used the redirect");
+        net.Texts[Api]=new NetException(NetFailure.Offline,"ConnectFailure"); net.RedirectError=new NetException(NetFailure.Offline,"ConnectFailure"); u.Check();
+        Equal(UpdateStage.Error,u.Status.Stage,"offline for both"); Equal(Updater.Messages.Offline,u.Status.Message,"offline message unchanged");
     }
     static void DownloadReady() {
         string folder=Folder("download"); Updater u=Make(Published("new build"),folder,"1.1.0"); List<double> progress=new List<double>();

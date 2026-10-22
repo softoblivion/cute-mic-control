@@ -30,6 +30,7 @@ cute-mic-control\
     Paths.cs           AppPaths: exe path and the portable data folder (the only place that builds these paths)
     Updater.cs         self-update: check, verified download, apply mode (no WPF / WinForms references)
     SettingsWindow.cs  settings window, tray icon and menu, update UI glue, launch-at-login registry value
+    UpdateWindow.cs    update window (new version, release notes from Markdown, progress, Install / Later)
     Theme.cs           control styles (plate buttons, switch, slider, list), HeartView, GlowOverlay (desktop indicator)
     Themes.cs          the four window themes, the colour derivation and the live brushes the window recolours
     Palettes.cs        five on / off colour pairs of the heart indicator
@@ -51,7 +52,8 @@ cute-mic-control\
 | Startup and settings | `src\App.cs` | this file, section 5 | `Program.Main` routes `--apply-update` first, then the mutex `Local\MicControl.Glow.App` |
 | Runtime paths | `src\Paths.cs` | this file, section 5 | `AppPaths.Data`, `.Settings`, `.Updates`, `.SelfTest`; `MIC_CONTROL_HOME` override |
 | Self-update | `src\Updater.cs` | `docs\SELF_UPDATE.md` | `Updater`, `UpdateApply`, `UpdateSchedule`, `SemVer`, `Checksums`, `WebNet` |
-| Settings window and tray | `src\SettingsWindow.cs` | `docs\USER_GUIDE.md` | the only UI consumer of `Updater` |
+| Settings window and tray | `src\SettingsWindow.cs` | `docs\USER_GUIDE.md` | owns the `Updater` and passes every status to the update window |
+| Update window | `src\UpdateWindow.cs` | `docs\SELF_UPDATE.md`, section 8 | `UpdateWindow`, `MarkdownView`; not created in the self-test |
 | Indicator and styles | `src\Theme.cs`, `src\Palettes.cs` | `docs\USER_GUIDE.md` | the palettes colour the heart only |
 | Window themes | `src\Themes.cs` | this file, section 8 | `ThemeSpec`, `Themes.All`, `ThemeLook` |
 | Hotkey | `src\Keyboard.cs` | `docs\USER_GUIDE.md` | `KeyEngine` is pure logic, covered by the self-test |
@@ -86,9 +88,11 @@ another version for tests without editing it (`-Version`, see `docs\BUILD.md`). 
 
 ## 7. Update flow (summary)
 
-Launch -> background check of GitHub Releases (repeated every 5 minutes, back-off up to 60 minutes after failures, skipped offline) -> newer version found -> background download into
-`updates\` (setting `autoDownloadUpdates`, default on) -> verified by size and SHA-256 -> tray balloon and menu item
-**Restart to update** -> on click the downloaded exe runs in apply mode, waits for this process to exit, swaps the
+Launch -> background check of GitHub Releases (the latest-release API document with the notes, falling back to the
+release redirect when the API is limited; repeated every 5 minutes, back-off up to 60 minutes after failures, skipped
+offline) -> newer version found -> the update window opens with the release notes -> background download into
+`updates\` (setting `autoDownloadUpdates`, default on, or **Install** in the window) -> verified by size and
+SHA-256 -> **Restart to update** in the window (tray balloon when the window is closed) -> on click the downloaded exe runs in apply mode, waits for this process to exit, swaps the
 exe and starts it in the tray -> the new instance removes `MicControl.exe.old` and shows "Updated to vX.Y.Z".
 Details, messages and failure handling: `docs\SELF_UPDATE.md`.
 
@@ -113,3 +117,11 @@ gradient, coloured glow, text shadow) and the `Ghost` style of the window button
 their corner radius to half of the control's height (`HalfRadius`), because a Border scales an oversized radius into
 elliptical corners. The preference `Prefs.Theme` is saved with the other settings; the self-test switches a theme
 through its chip and checks the preference round trip.
+
+## 9. Windows
+
+Every window of the app has a fixed size: the settings window (490 x up to 880), the indicator overlay (88 px times
+the indicator scale, click-through) and the update window (460 wide, its height follows the content up to 70 % of
+the work area). All three use `WindowStyle.None` with `ResizeMode.NoResize`: no sizing border, no maximize, no
+size hook, so the page covers the whole client area. This is the workspace rule for application windows
+(2026-10-21); a resizable window needs a task that names resizing as a requirement.
