@@ -82,7 +82,7 @@
 | Mute / unmute | the hotkey (default **Ctrl + Alt + M**), **Mute** in Settings, or **Toggle microphone** in the tray menu |
 | Change the hotkey | Settings → click the shortcut → record or pick a key → **Apply** |
 | Open Settings | double-click the tray heart, or tray menu → **Settings** |
-| Install an update | click the "Mic Control X.Y.Z is ready" notification, or tray menu → **Restart to update** |
+| Install an update | **Install** or **Restart to update** in the update window that opens when a new version is found (tray menu → **Restart to update** reopens it), or click the "Mic Control X.Y.Z is ready" notification |
 | Quit | tray menu → **Quit** (the microphone keeps its current state) |
 
 Fn keys, some vendor buttons and protected shortcuts such as Ctrl+Alt+Delete may not reach the app. The full guide:
@@ -129,7 +129,9 @@ data folder moves the whole installation.
   an hour; nothing is checked while Windows reports no network connection. A new version downloads in the background (switch **Download updates automatically**, on by default)
   into `cute-mic-control_data\updates\` and is verified by byte size and SHA-256 against the `SHA256SUMS` asset of
   the release.
-- **Restart to update** (tray menu, Settings, or a click on the notification) closes the app; the downloaded exe
+- A new version opens the update window with the release notes, the size and the date: **Install** downloads it and
+  restarts into it, **Later** closes the window for this run (the tray menu and Settings open it again).
+- **Restart to update** (update window, or a click on the notification) closes the app; the downloaded exe
   waits for it to exit, replaces `MicControl.exe` (the previous file stays as `MicControl.exe.old` until the new
   one starts), and starts the new version in the tray. If anything fails, the current exe stays as it was.
 - Version 1.0.0 cannot update itself: download the current `MicControl.exe` once by hand.

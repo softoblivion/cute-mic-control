@@ -23,6 +23,7 @@ class SettingsWindow : Window {
     internal ThemeLook Look=new ThemeLook(); internal List<Button> themeButtons=new List<Button>(); Forms.ContextMenuStrip menu;
     uint draftKey,draftMods; bool startup,quitting,ready,editing; bool? muted; bool initialized; readonly bool hidden;
     Updater updater; DispatcherTimer updateTimer; Forms.ToolStripMenuItem checkItem,restartItem; TextBlock updateText; Button updateButton; ToggleButton autoUpdateToggle; bool readyAnnounced,balloonApplies; int updateFailures;
+    UpdateWindow updateWindow; string announcedVersion;
     internal SettingsWindow(bool startHidden) {
         hidden=startHidden; Prefs=Preferences.Load();
         Width=490; Height=Math.Min(880,SystemParameters.WorkArea.Height-24); WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent;
@@ -39,13 +40,14 @@ class SettingsWindow : Window {
         menu.Items.Add("Toggle microphone",null,delegate { Toggle(); }); menu.Items.Add("Settings",null,delegate { OpenSettings(); }); menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(new Forms.ToolStripMenuItem(AppInfo.ProductName+" "+AppInfo.DisplayVersion) { Enabled=false });
         checkItem=new Forms.ToolStripMenuItem("Check for updates",null,delegate { UpdateAction(); }) { Enabled=!Program.Test }; menu.Items.Add(checkItem);
-        restartItem=new Forms.ToolStripMenuItem("Restart to update",null,delegate { ApplyUpdate(); }) { Visible=false }; menu.Items.Add(restartItem);
+        restartItem=new Forms.ToolStripMenuItem("Restart to update",null,delegate { OpenUpdate(); }) { Visible=false }; menu.Items.Add(restartItem);
         menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add("Quit",null,delegate { Exit(); });
         tray=new Forms.NotifyIcon { Text=AppInfo.ProductName,ContextMenuStrip=menu,Visible=!Program.Test }; tray.DoubleClick+=delegate { OpenSettings(); };
         tray.BalloonTipClicked+=delegate { if(balloonApplies)ApplyUpdate(); };
         if(!Program.Test) {
             updater=new Updater(new UpdateConfig { Repo=AppInfo.Repository,AssetName=AppInfo.AssetName,AppName=AppInfo.ProductName,Version=AppInfo.Version,UpdatesDir=AppPaths.Updates,ExePath=AppPaths.ExePath,ReleaseUrlVariable=AppInfo.ReleaseUrlVariable },null);
             updater.AutoDownload=delegate { return Prefs.AutoDownloadUpdates; };
+            updateWindow=new UpdateWindow(updater,Look,Resources,this,ApplyUpdate);
             updater.OnStatus=delegate(UpdateStatus s) { Dispatcher.BeginInvoke((Action)delegate { ShowUpdate(s); }); };
             updater.OnToast=delegate(string text) { Dispatcher.BeginInvoke((Action)delegate { Balloon(AppInfo.ProductName,text,false); }); };
             updateTimer=new DispatcherTimer { Interval=UpdateSchedule.Wait(0) }; updateTimer.Tick+=delegate { updateTimer.Interval=UpdateSchedule.Wait(updateFailures); if(UpdateSchedule.HasConnection() && updater.Status.Stage!=UpdateStage.Ready)updater.CheckInBackground(); };
@@ -250,16 +252,23 @@ class SettingsWindow : Window {
         }
     }
     static bool IsStartup() { try { using(RegistryKey k=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))return k!=null&&(k.GetValue("MicControlGlow")!=null||k.GetValue("MicMuteGlow")!=null); } catch { return false; } }
-    void UpdateAction() {
-        if(updater==null)return; UpdateStage stage=updater.Status.Stage;
-        if(stage==UpdateStage.Ready)ApplyUpdate(); else if(stage==UpdateStage.Available)updater.DownloadInBackground(); else updater.CheckInBackground();
-    }
+    // While a newer version is known (offered, downloading, ready, or its download failed) the tray item and the settings
+    // button open the update window instead of acting directly; otherwise they start a check.
+    static bool NewerKnown(UpdateStatus s) { return s.Latest!=null&&(s.Stage==UpdateStage.Available||s.Stage==UpdateStage.Downloading||s.Stage==UpdateStage.Ready||s.Stage==UpdateStage.Error); }
+    void UpdateAction() { if(updater==null)return; if(NewerKnown(updater.Status))OpenUpdate(); else updater.CheckInBackground(); }
+    void OpenUpdate() { if(updateWindow!=null&&!quitting)updateWindow.Open(); }
     void ShowUpdate(UpdateStatus s) {
-        bool busy=s.Stage==UpdateStage.Checking||s.Stage==UpdateStage.Downloading;
-        updateText.Text=s.Message; updateButton.IsEnabled=!busy;
-        updateButton.Content=s.Stage==UpdateStage.Ready?"Restart to update":s.Stage==UpdateStage.Available?"Download":"Check for updates";
-        checkItem.Text=s.Stage==UpdateStage.Available?"Download update":"Check for updates"; checkItem.Enabled=!busy&&s.Stage!=UpdateStage.Ready; restartItem.Visible=s.Stage==UpdateStage.Ready;
-        if(s.Stage==UpdateStage.Ready && !readyAnnounced) { readyAnnounced=true; Balloon(AppInfo.ProductName+" "+s.Latest+" is ready","Click to restart and update.",true); }
+        bool checking=s.Stage==UpdateStage.Checking,failedDownload=s.Stage==UpdateStage.Error&&s.Latest!=null;
+        updateText.Text=s.Message; updateButton.IsEnabled=!checking;
+        updateButton.Content=s.Stage==UpdateStage.Ready?"Restart to update":s.Stage==UpdateStage.Available?"Download":s.Stage==UpdateStage.Downloading?"Show progress":failedDownload?"Show update":"Check for updates";
+        checkItem.Text=s.Stage==UpdateStage.Available||failedDownload?"Download update":s.Stage==UpdateStage.Downloading?"Downloading update…":"Check for updates"; checkItem.Enabled=!checking&&s.Stage!=UpdateStage.Ready; restartItem.Visible=s.Stage==UpdateStage.Ready;
+        // The update window opens by itself once per newer version in a run (never for an up-to-date or failed check);
+        // the ready balloon remains for a background download that finishes while the window is closed.
+        if(updateWindow!=null) {
+            updateWindow.ShowStatus(s);
+            if(NewerKnown(s)&&s.Stage!=UpdateStage.Error&&s.Latest!=announcedVersion) { announcedVersion=s.Latest; OpenUpdate(); }
+        }
+        if(s.Stage==UpdateStage.Ready && !readyAnnounced) { readyAnnounced=true; if(updateWindow==null||!updateWindow.IsVisible)Balloon(AppInfo.ProductName+" "+s.Latest+" is ready","Click to restart and update.",true); }
         // The periodic check runs every 5 minutes; each failed check doubles the wait up to 60 minutes, the next check that ends in another stage restores 5 minutes.
         if(updateTimer!=null && (s.Stage==UpdateStage.Error || (updateFailures>0 && (s.Stage==UpdateStage.UpToDate || s.Stage==UpdateStage.Available || s.Stage==UpdateStage.Ready)))) { updateFailures=s.Stage==UpdateStage.Error?updateFailures+1:0; updateTimer.Stop(); updateTimer.Interval=UpdateSchedule.Wait(updateFailures); updateTimer.Start(); }
     }
@@ -267,6 +276,6 @@ class SettingsWindow : Window {
     void ApplyUpdate() { if(updater==null||quitting)return; CommitAppearance(); if(updater.Apply())Exit(); }
     void HideSettings() { CommitAppearance(); CloseEditor(); Hide(); }
     void OpenSettings() { Show(); WindowState=WindowState.Normal; Activate(); shell.BeginAnimation(OpacityProperty,null); shell.Opacity=1; }
-    internal void Exit() { if(quitting)return; quitting=true; CommitAppearance(); poll.Stop(); if(updateTimer!=null)updateTimer.Stop(); if(Hook!=null)Hook.Dispose(); overlay.Close(); tray.Visible=false; tray.ContextMenuStrip.Dispose(); tray.Dispose(); if(trayIcon!=null)trayIcon.Dispose(); Close(); Application.Current.Shutdown(); }
+    internal void Exit() { if(quitting)return; quitting=true; CommitAppearance(); poll.Stop(); if(updateTimer!=null)updateTimer.Stop(); if(Hook!=null)Hook.Dispose(); overlay.Close(); if(updateWindow!=null)updateWindow.Shutdown(); tray.Visible=false; tray.ContextMenuStrip.Dispose(); tray.Dispose(); if(trayIcon!=null)trayIcon.Dispose(); Close(); Application.Current.Shutdown(); }
 }
 }
