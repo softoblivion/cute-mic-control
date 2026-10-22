@@ -6,7 +6,7 @@
 
 **One shortcut mutes and unmutes the default microphone from anywhere. A heart in the corner of the screen shows the state: whole and glowing when the mic is on, broken when it is muted. Lives in the tray, one portable exe of about 100 KB, no installer, updates itself.**
 
-[![Download](https://img.shields.io/badge/Download-MicControl.exe-c06cd8?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/softoblivion/cute-mic-control/releases/latest/download/MicControl.exe)
+[![Download](https://img.shields.io/badge/Download-MicControl.exe-3ee6b8?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/softoblivion/cute-mic-control/releases/latest/download/MicControl.exe)
 [![Release](https://img.shields.io/github/v/release/softoblivion/cute-mic-control?display_name=release&label=latest&style=for-the-badge)](https://github.com/softoblivion/cute-mic-control/releases/latest)
 
 ![Platform](https://img.shields.io/badge/platform-Windows_10_|_11-0078D6?logo=windows&logoColor=white)
@@ -69,6 +69,7 @@
 | **Global hotkey** | Any key or combination: letters, F1–F24, NumPad and Num Enter, media keys, OEM keys, single modifiers (left or right), Ctrl / Alt / Shift / Win combinations. Record it or pick it from a searchable list. Holding the key does not toggle repeatedly. |
 | **Heart indicator** | Whole heart with a double pulse = on, broken heart = muted, dim = no input device. Above ordinary windows, click-through, 50–200 % size. |
 | **Five palettes** | Nebula, Aurora, Glacier, Ember, Lunar; each a pair of on / off colours for the overlay, the preview and the tray icon. |
+| **Four themes** | Dusk, Nova, Frost, Bloom: the background colour and accent of the settings window, shared with the other softoblivion desktop apps. |
 | **Tray app** | Toggle, Settings, update items and Quit in the tray menu; double-click opens Settings. Optional launch at login. |
 | **Follows Windows** | Reads the mute state every 500 ms, so a mute from the Windows sound settings or a headset button shows up too; follows default-device changes. |
 | **Self-update** | Checks GitHub Releases on start, downloads a new version in the background, verifies size and SHA-256, installs on one click. |
@@ -96,6 +97,7 @@ Stored in `cute-mic-control_data\settings.xml` next to the exe and saved as soon
 | `modifiers`, `key` | Ctrl + Alt, M | The hotkey (modifier bits Alt 1, Ctrl 2, Shift 4, Win 8; Windows virtual-key code) |
 | `overlay` | `True` | Show the heart indicator |
 | `indicatorScale` | `100` | Indicator size in percent, 50–200 |
+| `theme` | `bloom` | Window theme: `dusk`, `nova`, `frost` or `bloom` (an unknown name falls back to `bloom`) |
 | `palette` | `0` | 0 Nebula, 1 Aurora, 2 Glacier, 3 Ember, 4 Lunar |
 | `autoDownloadUpdates` | `True` | Download a new version in the background; installing is always a click on **Restart to update** |
 
@@ -160,7 +162,7 @@ Architecture, self-update and build notes: [ARCHITECTURE](docs/ARCHITECTURE.md) 
 
 ```
 cute-mic-control/
-├── src/                 the app: entry point and settings, tray and settings window, heart overlay and palettes,
+├── src/                 the app: entry point and settings, tray and settings window, themes, heart overlay and palettes,
 │                        keyboard hook, Core Audio, self-update, self-test, version
 ├── tests/               update tests (console runner built by build.ps1)
 ├── build/               build.ps1

@@ -33,18 +33,20 @@ static class TestSuite {
                 try {
                     File.WriteAllText(prefTest,"<MicMute modifiers=\"4\" key=\"123\" overlay=\"False\" />");
                     Preferences legacy=Preferences.Load(prefTest);
-                    Assert(legacy.Key==123&&legacy.Modifiers==4&&!legacy.Overlay&&legacy.IndicatorScale==100&&legacy.PaletteIndex==0&&legacy.AutoDownloadUpdates,"legacy preferences migrate without losing bindings");
-                    legacy.IndicatorScale=175; legacy.PaletteIndex=4; legacy.AutoDownloadUpdates=false; legacy.Save(prefTest);
+                    Assert(legacy.Key==123&&legacy.Modifiers==4&&!legacy.Overlay&&legacy.IndicatorScale==100&&legacy.PaletteIndex==0&&legacy.AutoDownloadUpdates&&legacy.Theme=="bloom","legacy preferences migrate without losing bindings");
+                    legacy.IndicatorScale=175; legacy.PaletteIndex=4; legacy.AutoDownloadUpdates=false; legacy.Theme="frost"; legacy.Save(prefTest);
                     Preferences restored=Preferences.Load(prefTest);
-                    Assert(restored.IndicatorScale==175&&restored.PaletteIndex==4&&restored.Key==123&&!restored.AutoDownloadUpdates,"appearance and update settings persist after restart");
-                    File.WriteAllText(prefTest,"<MicControl modifiers=\"3\" key=\"77\" overlay=\"True\" indicatorScale=\"999\" palette=\"99\" />");
-                    Preferences bounded=Preferences.Load(prefTest); Assert(bounded.IndicatorScale==200&&bounded.PaletteIndex==0,"invalid appearance values are bounded");
+                    Assert(restored.IndicatorScale==175&&restored.PaletteIndex==4&&restored.Key==123&&!restored.AutoDownloadUpdates&&restored.Theme=="frost","appearance and update settings persist after restart");
+                    File.WriteAllText(prefTest,"<MicControl modifiers=\"3\" key=\"77\" overlay=\"True\" indicatorScale=\"999\" palette=\"99\" theme=\"sunset\" />");
+                    Preferences bounded=Preferences.Load(prefTest); Assert(bounded.IndicatorScale==200&&bounded.PaletteIndex==0&&bounded.Theme=="bloom","invalid appearance values are bounded");
                 } finally { if(File.Exists(prefTest))File.Delete(prefTest); }
                 int originalScale=window.Prefs.IndicatorScale,originalPalette=window.Prefs.PaletteIndex;
                 window.sizeSlider.Value=50; Assert(window.overlay.Width==44 && window.overlay.Heart.Width==44,"slider resizes overlay to 50%");
                 window.sizeSlider.Value=200; Assert(window.overlay.Width==176 && window.overlay.Heart.Width==176,"slider resizes overlay to 200%");
                 window.paletteButtons[4].RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Assert(window.Prefs.PaletteIndex==4,"palette card changes selected colors");
                 window.sizeSlider.Value=originalScale; window.paletteButtons[originalPalette].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                string originalTheme=window.Prefs.Theme; window.themeButtons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Assert(window.Prefs.Theme=="dusk"&&window.Look.Current.Name=="dusk","theme chip applies the theme");
+                window.themeButtons[Themes.IndexOf(originalTheme)].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 using(KeyboardHook hook=new KeyboardHook()) { }
                 bool audio=Audio.Read();
                 Capture(window,Path.Combine(folder,"settings-preview.png"));
@@ -53,7 +55,7 @@ static class TestSuite {
                 Assert(Audio.Read()==audio,"microphone state restored");
                 HeartView active=new HeartView(220); active.SetState(false); active.Measure(new Size(220,220)); active.Arrange(new Rect(0,0,220,220));
                 HeartView broken=new HeartView(220); broken.SetState(true); broken.Measure(new Size(220,220)); broken.Arrange(new Rect(0,0,220,220));
-                UniformGrid paletteSheet=new UniformGrid { Columns=5,Width=900,Height=365,Background=Theme.Brush("#110D19") };
+                UniformGrid paletteSheet=new UniformGrid { Columns=5,Width=900,Height=365,Background=new SolidColorBrush(window.Look.Current.BgMid) };
                 for(int i=0;i<Palette.All.Length;i++) {
                     StackPanel card=new StackPanel { Margin=new Thickness(5,15,5,5) }; TextBlock name=Theme.Label(Palette.All[i].Name,16,Theme.Text); name.HorizontalAlignment=HorizontalAlignment.Center; card.Children.Add(name);
                     foreach(bool off in new bool[]{false,true}) { HeartView sample=new HeartView(148); sample.SetState(off); sample.ApplyPalette(i); card.Children.Add(sample); }
@@ -63,7 +65,7 @@ static class TestSuite {
                 window.OpenEditor();
                 DispatcherTimer second=new DispatcherTimer { Interval=TimeSpan.FromSeconds(.7) }; second.Tick+=delegate { second.Stop(); try {
                     Capture(window,Path.Combine(folder,"binding-preview.png")); Capture(active,Path.Combine(folder,"heart-active.png")); Capture(broken,Path.Combine(folder,"heart-muted.png")); Capture(paletteSheet,Path.Combine(folder,"palettes-preview.png"));
-                    File.WriteAllText(Path.Combine(folder,"self-test.txt"),"PASS: keyboard state machine, repeat suppression, solo modifiers, Win+F12, Esc, media, numpad/Num Enter, OEM, editor input; 248 selectable key codes.\r\nPASS: legacy preferences, appearance and update settings save/load, invalid values, live size slider and palette selection.\r\nPASS: low-level hook installation and cleanup.\r\nPASS: Core Audio read, settings toggle, original state restored; muted="+audio+"\r\nPASS: English settings, binding editor and all 5 palettes in both states.\r\n");
+                    File.WriteAllText(Path.Combine(folder,"self-test.txt"),"PASS: keyboard state machine, repeat suppression, solo modifiers, Win+F12, Esc, media, numpad/Num Enter, OEM, editor input; 248 selectable key codes.\r\nPASS: legacy preferences, appearance, theme and update settings save/load, invalid values, live size slider, palette and theme selection.\r\nPASS: low-level hook installation and cleanup.\r\nPASS: Core Audio read, settings toggle, original state restored; muted="+audio+"\r\nPASS: English settings, binding editor and all 5 palettes in both states.\r\n");
                 } catch(Exception ex) { File.WriteAllText(Path.Combine(folder,"self-test.txt"),ex.ToString()); } finally { window.Exit(); } }; second.Start();
             } catch(Exception ex) { File.WriteAllText(Path.Combine(folder,"self-test.txt"),ex.ToString()); window.Exit(); }
         }; timer.Start();

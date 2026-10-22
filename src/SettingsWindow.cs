@@ -20,13 +20,14 @@ class SettingsWindow : Window {
     Grid shell,root,editor; Border panel; TextBlock status,bindText,feedback,captureText,searchHint; Button mainToggle;
     ToggleButton overlayToggle,startToggle; ListBox keyList; TextBox search; Button record; List<Button> modButtons=new List<Button>();
     internal Slider sizeSlider; internal List<Button> paletteButtons=new List<Button>(); TextBlock sizeText; bool appearanceDirty; int renderedPalette=-1;
+    internal ThemeLook Look=new ThemeLook(); internal List<Button> themeButtons=new List<Button>(); Forms.ContextMenuStrip menu;
     uint draftKey,draftMods; bool startup,quitting,ready,editing; bool? muted; bool initialized; readonly bool hidden;
     Updater updater; DispatcherTimer updateTimer; Forms.ToolStripMenuItem checkItem,restartItem; TextBlock updateText; Button updateButton; ToggleButton autoUpdateToggle; bool readyAnnounced,balloonApplies; int updateFailures;
     internal SettingsWindow(bool startHidden) {
         hidden=startHidden; Prefs=Preferences.Load();
-        Width=490; Height=Math.Min(810,SystemParameters.WorkArea.Height-24); WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent;
+        Width=490; Height=Math.Min(880,SystemParameters.WorkArea.Height-24); WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent;
         WindowStartupLocation=WindowStartupLocation.CenterScreen; Title=AppInfo.ProductName+" · Settings · "+AppInfo.DisplayVersion;
-        FontFamily=new FontFamily("Bahnschrift"); Foreground=Theme.Text; Resources=Theme.Resources();
+        FontFamily=new FontFamily("Bahnschrift"); Foreground=Theme.Text; Resources=Theme.Resources(Look); Look.Apply(Themes.Get(Prefs.Theme),false);
         appearanceSave=new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(350) }; appearanceSave.Tick+=delegate { CommitAppearance(); };
         Build(); overlay=new GlowOverlay(); ApplyAppearance(false);
         if(!Program.Test) {
@@ -34,7 +35,7 @@ class SettingsWindow : Window {
             Hook.Engine.Fired=delegate { Dispatcher.BeginInvoke((Action)Toggle); };
             Hook.Engine.Captured=delegate(uint mods,uint key) { Dispatcher.BeginInvoke((Action)delegate { Captured(mods,key); }); };
         }
-        Forms.ContextMenuStrip menu=new Forms.ContextMenuStrip(); menu.BackColor=System.Drawing.Color.FromArgb(25,16,35); menu.ForeColor=System.Drawing.Color.FromArgb(245,228,255); menu.ShowImageMargin=false;
+        menu=new Forms.ContextMenuStrip(); menu.ForeColor=System.Drawing.Color.FromArgb(245,243,236); menu.ShowImageMargin=false; ApplyTheme(false);
         menu.Items.Add("Toggle microphone",null,delegate { Toggle(); }); menu.Items.Add("Settings",null,delegate { OpenSettings(); }); menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(new Forms.ToolStripMenuItem(AppInfo.ProductName+" "+AppInfo.DisplayVersion) { Enabled=false });
         checkItem=new Forms.ToolStripMenuItem("Check for updates",null,delegate { UpdateAction(); }) { Enabled=!Program.Test }; menu.Items.Add(checkItem);
@@ -60,19 +61,22 @@ class SettingsWindow : Window {
         if(!hidden)Show(); if(Prefs.Overlay)overlay.Show();
         if(updater!=null) { updater.Startup(); updater.CheckInBackground(); updateTimer.Start(); }
     }
-    static Border Line() { return new Border { Height=1,Background=Theme.Brush("#2A1F34"),Margin=new Thickness(0,21,0,21) }; }
+    static Border Line() { return new Border { Height=1,Background=Theme.Brush("#14FFFFFF"),Margin=new Thickness(0,21,0,21) }; }
     void Build() {
         root=new Grid { Margin=new Thickness(12) }; Content=root;
         shell=new Grid { RenderTransform=new TranslateTransform(),Background=Brushes.Transparent }; root.Children.Add(shell);
-        Border frame=new Border { CornerRadius=new CornerRadius(28),BorderThickness=new Thickness(1),BorderBrush=Theme.Gradient("#74506E","#30233E"),Background=Theme.Brush("#110D19") };
-        frame.Effect=new DropShadowEffect { Color=Color.FromRgb(83,34,116),BlurRadius=22,ShadowDepth=0,Opacity=.4 }; shell.Children.Add(frame);
+        Border frame=new Border { CornerRadius=new CornerRadius(28),BorderThickness=new Thickness(1),BorderBrush=Look.FrameEdge,Background=Look.Frame,Effect=Look.FrameShadow }; shell.Children.Add(frame);
         Grid content=new Grid { Margin=new Thickness(1),ClipToBounds=true }; shell.Children.Add(content);
         Canvas atmosphere=new Canvas { IsHitTestVisible=false }; content.Children.Add(atmosphere);
-        Ellipse nebula=new Ellipse { Width=390,Height=330,Opacity=.42,Fill=new RadialGradientBrush(Color.FromArgb(105,147,59,168),Colors.Transparent),RenderTransform=new TranslateTransform() };
+        // The "deep field" of the shared look: a large soft field of the hue drifting across the top, a smaller dimmer one of the accent in the bottom-right corner.
+        Ellipse nebula=new Ellipse { Width=390,Height=330,Opacity=.42,Fill=Look.Nebula,RenderTransform=new TranslateTransform() };
         Canvas.SetLeft(nebula,60); Canvas.SetTop(nebula,-75); atmosphere.Children.Add(nebula);
         DoubleAnimation drift=new DoubleAnimation(-12,20,TimeSpan.FromSeconds(9)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,EasingFunction=new SineEase { EasingMode=EasingMode.EaseInOut } }; ((TranslateTransform)nebula.RenderTransform).BeginAnimation(TranslateTransform.XProperty,drift);
+        Ellipse field=new Ellipse { Width=260,Height=220,Opacity=.5,Fill=Look.Field,RenderTransform=new TranslateTransform() };
+        Canvas.SetLeft(field,300); Canvas.SetTop(field,Height-240); atmosphere.Children.Add(field);
+        DoubleAnimation fieldDrift=new DoubleAnimation(10,-14,TimeSpan.FromSeconds(13)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,EasingFunction=new SineEase { EasingMode=EasingMode.EaseInOut } }; ((TranslateTransform)field.RenderTransform).BeginAnimation(TranslateTransform.YProperty,fieldDrift);
         Random random=new Random(42);
-        for(int i=0;i<15;i++) { Ellipse star=new Ellipse { Width=i%4==0?2:1,Height=i%4==0?2:1,Fill=Theme.Brush("#CEB9ED"),Opacity=.15 }; Canvas.SetLeft(star,25+random.Next(400)); Canvas.SetTop(star,50+random.Next(275)); atmosphere.Children.Add(star); star.BeginAnimation(OpacityProperty,new DoubleAnimation(.08,.4,TimeSpan.FromSeconds(2+random.NextDouble()*4)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,BeginTime=TimeSpan.FromSeconds(random.NextDouble()*2) }); }
+        for(int i=0;i<15;i++) { Ellipse star=new Ellipse { Width=i%4==0?2:1,Height=i%4==0?2:1,Fill=Look.Line,Opacity=.15 }; Canvas.SetLeft(star,25+random.Next(400)); Canvas.SetTop(star,50+random.Next(275)); atmosphere.Children.Add(star); star.BeginAnimation(OpacityProperty,new DoubleAnimation(.08,.4,TimeSpan.FromSeconds(2+random.NextDouble()*4)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,BeginTime=TimeSpan.FromSeconds(random.NextDouble()*2) }); }
         Grid header=new Grid { Height=64,VerticalAlignment=VerticalAlignment.Top,Margin=new Thickness(26,8,16,0),Background=Brushes.Transparent }; content.Children.Add(header);
         header.MouseLeftButtonDown+=delegate(object s,MouseButtonEventArgs e) { if(e.ChangedButton==MouseButton.Left)DragMove(); };
         TextBlock heading=Theme.Label("Settings",18,Theme.Text); heading.HorizontalAlignment=HorizontalAlignment.Left; header.Children.Add(heading);
@@ -81,16 +85,16 @@ class SettingsWindow : Window {
         ScrollViewer settingsScroll=new ScrollViewer { Margin=new Thickness(30,68,30,62),VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,3,0) }; content.Children.Add(settingsScroll);
         StackPanel stack=new StackPanel(); settingsScroll.Content=stack;
         Grid hero=new Grid { Height=155 };
-        Ellipse orbit=new Ellipse { Width=193,Height=57,StrokeThickness=.7,Stroke=Theme.Gradient("#9BC788E6","#005E3380"),Margin=new Thickness(0,0,0,27),RenderTransformOrigin=new Point(.5,.5),RenderTransform=new RotateTransform(-23),IsHitTestVisible=false };
+        Ellipse orbit=new Ellipse { Width=193,Height=57,StrokeThickness=.7,Stroke=Look.Orbit,Margin=new Thickness(0,0,0,27),RenderTransformOrigin=new Point(.5,.5),RenderTransform=new RotateTransform(-23),IsHitTestVisible=false };
         ((RotateTransform)orbit.RenderTransform).BeginAnimation(RotateTransform.AngleProperty,new DoubleAnimation(-23,-13,TimeSpan.FromSeconds(9)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,EasingFunction=new SineEase { EasingMode=EasingMode.EaseInOut } }); hero.Children.Add(orbit);
         Heart=new HeartView(190); Heart.VerticalAlignment=VerticalAlignment.Top; Heart.Margin=new Thickness(0,-22,0,0); hero.Children.Add(Heart);
         status=Theme.Label("",13,Theme.Muted); status.HorizontalAlignment=HorizontalAlignment.Center; status.VerticalAlignment=VerticalAlignment.Bottom; status.Margin=new Thickness(0,0,0,7); hero.Children.Add(status); stack.Children.Add(hero);
-        mainToggle=new Button { Height=47,Content="Mute",HorizontalContentAlignment=HorizontalAlignment.Center,Background=Theme.Gradient("#553147","#39234F"),BorderBrush=Theme.Brush("#84516F"),Margin=new Thickness(61,10,61,0) }; mainToggle.Click+=delegate { Toggle(); }; stack.Children.Add(mainToggle);
+        mainToggle=new Button { Height=46,Content="Mute",HorizontalContentAlignment=HorizontalAlignment.Center,Style=(Style)Resources["Tinted"],Background=Look.AccentGrad,Effect=Look.AccentGlow,Margin=new Thickness(61,10,61,0) }; mainToggle.Click+=delegate { Toggle(); }; stack.Children.Add(mainToggle);
         stack.Children.Add(Line());
         Grid keyRow=new Grid { Height=55 }; keyRow.ColumnDefinitions.Add(new ColumnDefinition()); keyRow.ColumnDefinitions.Add(new ColumnDefinition { Width=GridLength.Auto });
         TextBlock keyLabel=Theme.Label("Hotkey",14,Theme.Text); keyRow.Children.Add(keyLabel);
         Button binding=new Button { MinWidth=136,MaxWidth=230,Height=45,HorizontalContentAlignment=HorizontalAlignment.Center,Padding=new Thickness(13,7,13,7) };
-        bindText=Theme.Label(Preferences.KeyName(Prefs.Modifiers,Prefs.Key),13,Theme.Brush("#E0B5F1")); bindText.TextTrimming=TextTrimming.CharacterEllipsis; binding.Content=bindText; binding.ToolTip=bindText.Text; binding.Click+=delegate { OpenEditor(); }; Grid.SetColumn(binding,1); keyRow.Children.Add(binding); stack.Children.Add(keyRow);
+        bindText=Theme.Label(Preferences.KeyName(Prefs.Modifiers,Prefs.Key),13,Look.AccentInk); bindText.TextTrimming=TextTrimming.CharacterEllipsis; binding.Content=bindText; binding.ToolTip=bindText.Text; binding.Click+=delegate { OpenEditor(); }; Grid.SetColumn(binding,1); keyRow.Children.Add(binding); stack.Children.Add(keyRow);
         stack.Children.Add(new Border { Height=14 });
         overlayToggle=SwitchRow(stack,"Indicator",Prefs.Overlay); overlayToggle.Click+=delegate { if(!ready)return; bool previous=Prefs.Overlay; Prefs.Overlay=overlayToggle.IsChecked==true; try { Prefs.Save(); if(Prefs.Overlay)overlay.Show(); else overlay.Hide(); } catch { Prefs.Overlay=previous; overlayToggle.IsChecked=previous; Error("Could not save settings. Check folder permissions."); } };
         BuildAppearance(stack);
@@ -99,24 +103,25 @@ class SettingsWindow : Window {
         Grid updateRow=new Grid { MinHeight=44 }; updateRow.ColumnDefinitions.Add(new ColumnDefinition()); updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width=GridLength.Auto });
         updateText=Theme.Label(Program.Test?"Updates are not checked in the self-test":"Updates are not checked yet",11,Theme.Muted); updateText.TextWrapping=TextWrapping.Wrap; updateText.Margin=new Thickness(0,0,12,0); updateRow.Children.Add(updateText);
         updateButton=new Button { Content="Check for updates",Height=34,FontSize=11,Padding=new Thickness(12,5,12,5),HorizontalContentAlignment=HorizontalAlignment.Center,IsEnabled=!Program.Test }; updateButton.Click+=delegate { UpdateAction(); }; Grid.SetColumn(updateButton,1); updateRow.Children.Add(updateButton); stack.Children.Add(updateRow);
-        feedback=Theme.Label("",11,Theme.Brush("#EF9DC9")); feedback.TextWrapping=TextWrapping.Wrap; feedback.Margin=new Thickness(0,6,0,0); feedback.MaxHeight=35; stack.Children.Add(feedback);
+        feedback=Theme.Label("",11,Theme.Rose); feedback.TextWrapping=TextWrapping.Wrap; feedback.Margin=new Thickness(0,6,0,0); feedback.MaxHeight=35; stack.Children.Add(feedback);
         Grid footer=new Grid { VerticalAlignment=VerticalAlignment.Bottom,Height=44,Margin=new Thickness(30,0,27,8) }; content.Children.Add(footer);
         StackPanel meta=new StackPanel { VerticalAlignment=VerticalAlignment.Center };
         TextBlock device=Theme.Label("Default input device",10,Theme.Muted); meta.Children.Add(device);
         TextBlock signature=Theme.Label(AppInfo.DisplayVersion+"  ·  "+AppInfo.AuthorTag,9,Theme.Muted); signature.Opacity=.48; meta.Children.Add(signature); footer.Children.Add(meta);
-        Button exit=new Button { Content="Quit",Background=Brushes.Transparent,BorderThickness=new Thickness(0),FontSize=11,Foreground=Theme.Muted,HorizontalAlignment=HorizontalAlignment.Right,Padding=new Thickness(10,5,10,5) }; exit.Click+=delegate { Exit(); }; footer.Children.Add(exit);
+        Button exit=new Button { Content="Quit",Height=30,FontSize=11,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center,Padding=new Thickness(13,0,13,0) }; exit.Click+=delegate { Exit(); }; footer.Children.Add(exit);
         BuildEditor();
     }
-    Button Tiny(string symbol) { return new Button { Content=symbol,Width=33,Height=32,Padding=new Thickness(0),HorizontalContentAlignment=HorizontalAlignment.Center,Background=Brushes.Transparent,BorderThickness=new Thickness(0),FontSize=21,Foreground=Theme.Muted,Margin=new Thickness(2,0,0,0) }; }
+    Button Tiny(string symbol) { return new Button { Content=symbol,Width=30,Height=30,Padding=new Thickness(0,0,0,2),HorizontalContentAlignment=HorizontalAlignment.Center,Style=(Style)Resources["Ghost"],FontSize=19,Margin=new Thickness(4,0,0,0) }; }
     ToggleButton SwitchRow(Panel parent,string title,bool on) {
-        Grid row=new Grid { Height=56 }; row.Children.Add(Theme.Label(title,14,Theme.Text)); ToggleButton toggle=new ToggleButton { IsChecked=on,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center }; System.Windows.Automation.AutomationProperties.SetName(toggle,title); row.Children.Add(toggle); parent.Children.Add(row); return toggle;
+        Grid row=new Grid { Height=56 }; row.Children.Add(Theme.Label(title,14,Theme.Text)); ToggleButton toggle=new ToggleButton { IsChecked=on,Background=Look.AccentGrad,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center }; System.Windows.Automation.AutomationProperties.SetName(toggle,title); row.Children.Add(toggle); parent.Children.Add(row); return toggle;
     }
     void BuildAppearance(Panel parent) {
         Grid sizeRow=new Grid { Height=35,Margin=new Thickness(0,4,0,0) }; parent.Children.Add(sizeRow);
-        sizeRow.Children.Add(Theme.Label("Indicator size",13,Theme.Text)); sizeText=Theme.Label(Prefs.IndicatorScale+"%",12,Theme.Brush("#C8A7DC")); sizeText.HorizontalAlignment=HorizontalAlignment.Right; sizeRow.Children.Add(sizeText);
-        sizeSlider=new Slider { Minimum=50,Maximum=200,Value=Prefs.IndicatorScale,TickFrequency=5,IsSnapToTickEnabled=true,SmallChange=5,LargeChange=25,IsMoveToPointEnabled=true,Height=27,Margin=new Thickness(0,0,0,7),ToolTip="Resize the desktop indicator" };
+        sizeRow.Children.Add(Theme.Label("Indicator size",13,Theme.Text)); sizeText=Theme.Label(Prefs.IndicatorScale+"%",12,Theme.Ink2); sizeText.HorizontalAlignment=HorizontalAlignment.Right; sizeRow.Children.Add(sizeText);
+        sizeSlider=new Slider { Minimum=50,Maximum=200,Value=Prefs.IndicatorScale,TickFrequency=5,IsSnapToTickEnabled=true,SmallChange=5,LargeChange=25,IsMoveToPointEnabled=true,Height=27,Margin=new Thickness(0,0,0,7),ToolTip="Resize the desktop indicator",Foreground=Look.Accent,BorderBrush=Look.AccentInk,Tag=Look.ThumbGlow };
         System.Windows.Automation.AutomationProperties.SetName(sizeSlider,"Indicator size"); parent.Children.Add(sizeSlider);
         sizeSlider.ValueChanged+=delegate { if(!ready)return; Prefs.IndicatorScale=(int)Math.Round(sizeSlider.Value); ApplyAppearance(true); };
+        BuildThemeRow(parent);
         Grid paletteHeading=new Grid { Height=34 }; parent.Children.Add(paletteHeading); paletteHeading.Children.Add(Theme.Label("Color palette",13,Theme.Text));
         TextBlock legend=Theme.Label("ON / OFF",9,Theme.Muted); legend.HorizontalAlignment=HorizontalAlignment.Right; paletteHeading.Children.Add(legend);
         UniformGrid cards=new UniformGrid { Columns=5,Rows=1,Margin=new Thickness(-2,3,-2,13),Height=65 }; parent.Children.Add(cards);
@@ -130,13 +135,48 @@ class SettingsWindow : Window {
             card.Click+=delegate { Prefs.PaletteIndex=selected; ApplyAppearance(true); }; cards.Children.Add(card); paletteButtons.Add(card);
         }
     }
+    // The Theme row of the shared look: four chips (a round swatch of the hue with the accent dot, then the label); arrows move the choice, a choice applies at once and is saved.
+    void BuildThemeRow(Panel parent) {
+        StackPanel heading=new StackPanel { Margin=new Thickness(0,2,0,0) }; heading.Children.Add(Theme.Label("Theme",13,Theme.Text));
+        TextBlock hint=Theme.Label("Background colour and accent of the window",10,Theme.Muted); hint.Margin=new Thickness(0,2,0,0); heading.Children.Add(hint); parent.Children.Add(heading);
+        UniformGrid row=new UniformGrid { Columns=Themes.All.Length,Rows=1,Height=36,Margin=new Thickness(-3,9,-3,16) }; System.Windows.Automation.AutomationProperties.SetName(row,"Theme"); parent.Children.Add(row);
+        for(int i=0;i<Themes.All.Length;i++) {
+            ThemeSpec theme=Themes.All[i]; int index=i;
+            Button chip=new Button { Height=36,Padding=new Thickness(5,0,10,0),Margin=new Thickness(3,0,3,0),HorizontalContentAlignment=HorizontalAlignment.Left,Background=Theme.Brush("#0DFFFFFF"),BorderBrush=Brushes.Transparent,Tag=i };
+            System.Windows.Automation.AutomationProperties.SetName(chip,theme.Label+" theme");
+            StackPanel contents=new StackPanel { Orientation=Orientation.Horizontal }; contents.Children.Add(Swatch(theme));
+            TextBlock name=Theme.Label(theme.Label,12,Theme.Ink2); name.Margin=new Thickness(8,0,0,0); contents.Children.Add(name); chip.Content=contents;
+            chip.Click+=delegate { SelectTheme(index); };
+            chip.KeyDown+=delegate(object s,KeyEventArgs e) { int step=e.Key==Key.Right||e.Key==Key.Down?1:e.Key==Key.Left||e.Key==Key.Up?-1:0; if(step==0)return; int next=(index+step+Themes.All.Length)%Themes.All.Length; themeButtons[next].Focus(); SelectTheme(next); e.Handled=true; };
+            row.Children.Add(chip); themeButtons.Add(chip);
+        }
+    }
+    static Grid Swatch(ThemeSpec theme) {
+        Grid swatch=new Grid { Width=24,Height=24,Clip=new EllipseGeometry(new Point(12,12),12,12) };
+        swatch.Children.Add(new Ellipse { Fill=new LinearGradientBrush(ThemeSpec.Mix(theme.Hue,Colors.Black,.3),theme.Hue,45),Stroke=Theme.Brush("#40FFFFFF"),StrokeThickness=1 });
+        swatch.Children.Add(new Ellipse { Width=13,Height=13,Fill=new SolidColorBrush(theme.Accent),Stroke=Theme.Brush("#59000000"),StrokeThickness=1.5,HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(0,0,-2,-2) });
+        return swatch;
+    }
+    void SelectTheme(int index) {
+        string previous=Prefs.Theme,next=Themes.All[index].Name; if(previous==next)return; Prefs.Theme=next; ApplyTheme(true);
+        if(Program.Test)return; try { Prefs.Save(); } catch { Prefs.Theme=previous; ApplyTheme(true); Error("Could not save settings. Check folder permissions."); }
+    }
+    void ApplyTheme(bool animate) {
+        ThemeSpec theme=Themes.Get(Prefs.Theme); Look.Apply(theme,animate);
+        foreach(Button chip in themeButtons) {
+            bool on=(int)chip.Tag==Themes.IndexOf(theme.Name);
+            chip.Background=Theme.Brush(on?"#21FFFFFF":"#0DFFFFFF"); chip.BorderBrush=on?(Brush)Look.AccentInk:Brushes.Transparent;
+            ((TextBlock)((StackPanel)chip.Content).Children[1]).Foreground=on?Theme.Text:Theme.Ink2;
+        }
+        menu.BackColor=ThemeSpec.Drawing(theme.BgMid);
+    }
     internal void ApplyAppearance(bool save) {
         sizeText.Text=Prefs.IndicatorScale+"%"; overlay.SetScale(Prefs.IndicatorScale);
         if(renderedPalette!=Prefs.PaletteIndex) {
             renderedPalette=Prefs.PaletteIndex; Heart.ApplyPalette(Prefs.PaletteIndex); overlay.Heart.ApplyPalette(Prefs.PaletteIndex);
             foreach(Button card in paletteButtons) {
                 bool selected=(int)card.Tag==Prefs.PaletteIndex;
-                card.BorderBrush=Theme.Brush(selected?"#C58BDF":"#382440"); card.Background=Theme.Brush(selected?"#36223F":"#191222");
+                card.BorderBrush=selected?(Brush)Look.AccentInk:Theme.Hairline; card.Background=selected?Theme.FillHover:Theme.Fill;
                 ((TextBlock)((StackPanel)card.Content).Children[1]).Foreground=selected?Theme.Text:Theme.Muted;
             }
             if(tray!=null)UpdateState();
@@ -148,23 +188,23 @@ class SettingsWindow : Window {
         try { Prefs.Save(); appearanceDirty=false; } catch { Error("Could not save appearance. Check folder permissions."); }
     }
     void BuildEditor() {
-        editor=new Grid { Visibility=Visibility.Collapsed,Background=Theme.Brush("#BC090610") }; root.Children.Add(editor);
-        panel=new Border { CornerRadius=new CornerRadius(23),Margin=new Thickness(18,45,18,28),Background=Theme.Brush("#181020"),BorderThickness=new Thickness(1),BorderBrush=Theme.Brush("#654273"),RenderTransform=new TranslateTransform(),Padding=new Thickness(24) }; editor.Children.Add(panel);
+        editor=new Grid { Visibility=Visibility.Collapsed,Background=Look.Scrim }; root.Children.Add(editor);
+        panel=new Border { CornerRadius=new CornerRadius(23),Margin=new Thickness(18,45,18,28),Background=Look.Sheet,BorderThickness=new Thickness(1),BorderBrush=Theme.Hairline,RenderTransform=new TranslateTransform(),Padding=new Thickness(24) }; editor.Children.Add(panel);
         Grid layout=new Grid(); panel.Child=layout; layout.RowDefinitions.Add(new RowDefinition { Height=GridLength.Auto }); layout.RowDefinitions.Add(new RowDefinition()); layout.RowDefinitions.Add(new RowDefinition { Height=GridLength.Auto });
         StackPanel top=new StackPanel(); layout.Children.Add(top);
         Grid title=new Grid { Margin=new Thickness(0,0,0,16) }; title.Children.Add(Theme.Label("Hotkey",18,Theme.Text)); Button cancel=Tiny("×"); cancel.HorizontalAlignment=HorizontalAlignment.Right; cancel.Click+=delegate { CloseEditor(); }; title.Children.Add(cancel); top.Children.Add(title);
-        record=new Button { Height=43,HorizontalContentAlignment=HorizontalAlignment.Center,Background=Theme.Gradient("#44304E","#30203E") }; captureText=Theme.Label("Record a shortcut",13,Theme.Text); record.Content=captureText;
+        record=new Button { Height=43,HorizontalContentAlignment=HorizontalAlignment.Center }; captureText=Theme.Label("Record a shortcut",13,Theme.Text); record.Content=captureText;
         record.ToolTip="Click, then press a key or shortcut. Close this panel to cancel.";
         record.Click+=delegate { if(Hook!=null) { Hook.Engine.BeginCapture(); SetRecording(true); } }; top.Children.Add(record);
         StackPanel mods=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(0,14,0,14) }; string[] names={"Ctrl","Alt","Shift","Win"}; uint[] bits={2,1,4,8};
         for(int i=0;i<names.Length;i++) { uint bit=bits[i]; Button chip=new Button { Content=names[i],Tag=bit,Width=73,Height=34,Padding=new Thickness(0),HorizontalContentAlignment=HorizontalAlignment.Center,FontSize=12,Margin=new Thickness(0,0,7,0) }; chip.Click+=delegate { draftMods^=bit; SyncDraft(); }; mods.Children.Add(chip); modButtons.Add(chip); } top.Children.Add(mods);
-        search=new TextBox { FontFamily=new FontFamily("Bahnschrift"),FontSize=13,Height=36,Padding=new Thickness(10,8,10,7),Foreground=Theme.Text,Background=Theme.Brush("#100B17"),BorderBrush=Theme.Brush("#3C2A49"),CaretBrush=Theme.Brush("#FFB5DF") }; search.ToolTip="Search keys";
+        search=new TextBox { FontFamily=new FontFamily("Bahnschrift"),FontSize=13,Height=36,Padding=new Thickness(10,8,10,7),Foreground=Theme.Text,Background=Look.BgTop,BorderBrush=Theme.Hairline,CaretBrush=Look.AccentInk }; search.ToolTip="Search keys";
         Grid searchBox=new Grid(); searchBox.Children.Add(search); searchHint=Theme.Label("Search keys",12,Theme.Muted); searchHint.Margin=new Thickness(11,0,0,0); searchHint.IsHitTestVisible=false; searchBox.Children.Add(searchHint);
         search.TextChanged+=delegate { searchHint.Visibility=search.Text.Length==0?Visibility.Visible:Visibility.Collapsed; FilterKeys(); }; top.Children.Add(searchBox);
-        keyList=new ListBox { Background=Brushes.Transparent,BorderThickness=new Thickness(0),FontFamily=new FontFamily("Bahnschrift"),FontSize=13,Margin=new Thickness(0,10,0,12) }; ScrollViewer.SetHorizontalScrollBarVisibility(keyList,ScrollBarVisibility.Disabled); VirtualizingStackPanel.SetIsVirtualizing(keyList,true); keyList.SelectionChanged+=delegate { KeyItem item=keyList.SelectedItem as KeyItem; if(item!=null) { draftKey=item.Code; SyncDraft(); } }; Grid.SetRow(keyList,1); layout.Children.Add(keyList);
+        keyList=new ListBox { Background=Brushes.Transparent,BorderThickness=new Thickness(0),FontFamily=new FontFamily("Bahnschrift"),FontSize=13,Margin=new Thickness(0,10,0,12),Tag=Look.AccentSoft }; ScrollViewer.SetHorizontalScrollBarVisibility(keyList,ScrollBarVisibility.Disabled); VirtualizingStackPanel.SetIsVirtualizing(keyList,true); keyList.SelectionChanged+=delegate { KeyItem item=keyList.SelectedItem as KeyItem; if(item!=null) { draftKey=item.Code; SyncDraft(); } }; Grid.SetRow(keyList,1); layout.Children.Add(keyList);
         StackPanel bottom=new StackPanel(); Grid.SetRow(bottom,2); layout.Children.Add(bottom);
         TextBlock note=Theme.Label("Fn and protected shortcuts depend on Windows.",10,Theme.Muted); note.TextWrapping=TextWrapping.Wrap; note.Margin=new Thickness(0,0,0,12); bottom.Children.Add(note);
-        Button apply=new Button { Name="ApplyBinding",Height=43,Content="Apply",HorizontalContentAlignment=HorizontalAlignment.Center,Background=Theme.Gradient("#603550","#432C64") }; apply.Click+=delegate { ApplyBinding(); }; bottom.Children.Add(apply);
+        Button apply=new Button { Name="ApplyBinding",Height=43,Content="Apply",HorizontalContentAlignment=HorizontalAlignment.Center }; apply.Click+=delegate { ApplyBinding(); }; bottom.Children.Add(apply);
     }
     internal void OpenEditor() {
         editing=true; if(Hook!=null)Hook.Engine.Suspended=true; draftKey=Prefs.Key; draftMods=Prefs.Modifiers; search.Text=""; FilterKeys(); SyncDraft();
@@ -174,10 +214,10 @@ class SettingsWindow : Window {
     void CloseEditor() { editing=false; if(Hook!=null) { Hook.Engine.CancelCapture(); Hook.Engine.Suspended=false; } SetRecording(false); editor.Visibility=Visibility.Collapsed; }
     void FilterKeys() { if(keyList==null)return; string q=search.Text.Trim(); keyList.ItemsSource=KeyCatalog.All().Where(k=>k.Label.IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0).ToList(); }
     void SyncDraft() {
-        foreach(Button b in modButtons) { bool on=(draftMods&(uint)b.Tag)!=0; b.Background=Theme.Brush(on?"#58355F":"#22172D"); b.BorderBrush=Theme.Brush(on?"#C381D9":"#392643"); }
+        foreach(Button b in modButtons) { bool on=(draftMods&(uint)b.Tag)!=0; b.Background=on?Theme.FillHover:Theme.Fill; b.BorderBrush=on?(Brush)Look.AccentInk:Theme.Hairline; }
         if(captureText!=null && (Hook==null||!Hook.Engine.Capturing))captureText.Text=Preferences.KeyName(draftMods,draftKey);
     }
-    void SetRecording(bool active) { captureText.Text=active?"Press a key or shortcut…":Preferences.KeyName(draftMods,draftKey); record.BorderBrush=Theme.Brush(active?"#F497D8":"#392643"); }
+    void SetRecording(bool active) { captureText.Text=active?"Press a key or shortcut…":Preferences.KeyName(draftMods,draftKey); record.BorderBrush=active?(Brush)Look.AccentInk:Theme.Hairline; }
     void Captured(uint mods,uint key) { if(!editing)return; draftMods=mods; draftKey=key; search.Text=""; SetRecording(false); SyncDraft(); foreach(KeyItem item in keyList.Items)if(item.Code==key) { keyList.SelectedItem=item; keyList.ScrollIntoView(item); break; } }
     void ApplyBinding() {
         if(Hook!=null)Hook.Engine.CancelCapture();

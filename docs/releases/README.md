@@ -5,6 +5,7 @@ Changed, Fixed, Removed in that order, each change in exactly one section, writt
 
 | Version | Date | Summary |
 |---|---|---|
+| [v2.0.0](v2.0.0.md) | 2026-10-21 | Four window themes, darker background, unified button states |
 | [v1.2.0](v1.2.0.md) | 2026-10-21 | Update check every 5 minutes with back-off |
 | [v1.1.0](v1.1.0.md) | 2026-10-21 | Self-update from GitHub Releases, portable settings folder |
 | [v1.0.0](v1.0.0.md) | 2026-09-24 | First release |

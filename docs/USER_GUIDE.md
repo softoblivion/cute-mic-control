@@ -16,6 +16,8 @@ Fn, hardware-specific buttons and protected system shortcuts such as Ctrl+Alt+De
 
 **Indicator size** — adjust from **50% to 200%**, in steps of 5%. Changes preview immediately on the desktop and save automatically. The default is 100%. Size includes the transparent area used by the glow; the heart and glow scale together.
 
+**Theme** — the background colour and accent of the window. Four themes: **Dusk** (cobalt with a coral accent), **Nova** (violet with an ember accent), **Frost** (ice blue with a lilac accent) and **Bloom** (magenta with a mint accent, the default). The accent colours the Mute button, the slider, the switches, the shortcut and the selection in the key list; the theme does not change the heart indicator. A choice applies at once with a short colour fade and is saved; with a chip focused, the arrow keys move the choice. The same four themes exist in the other softoblivion desktop apps.
+
 **Color palette** — choose one of five coordinated pairs. The left swatch is microphone on; the right is microphone off. Gradients, glow, the large heart preview and the tray icon all use the selected palette. Palette changes fade smoothly and save automatically.
 
 | Palette | Microphone on | Microphone off |
@@ -52,7 +54,7 @@ The app does not record audio or log keystrokes. Its only network access is the 
 
 ## Files
 
-Everything the app stores is in `cute-mic-control_data\` next to `MicControl.exe`: `settings.xml` (shortcut, indicator, palette, update switch) and `updates\` (downloaded versions and the update log). On the first start of 1.1.0 or later, settings of 1.0.0 from `%LOCALAPPDATA%\Mic Control\settings.xml` (or the older `%LOCALAPPDATA%\MicMute\settings.xml`) are copied into that folder, so the shortcut and appearance carry over; the old file is not changed. Launch at login uses the value `MicControlGlow` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; changing the setting also removes the legacy `MicMuteGlow` value.
+Everything the app stores is in `cute-mic-control_data\` next to `MicControl.exe`: `settings.xml` (shortcut, indicator, theme, palette, update switch) and `updates\` (downloaded versions and the update log). On the first start of 1.1.0 or later, settings of 1.0.0 from `%LOCALAPPDATA%\Mic Control\settings.xml` (or the older `%LOCALAPPDATA%\MicMute\settings.xml`) are copied into that folder, so the shortcut and appearance carry over; the old file is not changed. Launch at login uses the value `MicControlGlow` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; changing the setting also removes the legacy `MicMuteGlow` value.
 
 To move the app, disable **Launch at login**, quit, move `MicControl.exe` together with `cute-mic-control_data\`, start it and enable the setting again. To uninstall, disable **Launch at login**, quit the app, then delete its folder.
 

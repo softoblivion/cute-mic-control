@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,55 +9,85 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 namespace MicControl {
+// Inks, fills and the control styles. Every button is a "plate" (fill, hairline, top bevel, bottom shade, drop
+// shadow, specular streak) with hover / pressed / focus / disabled states; the one primary action of the window
+// uses the "Tinted" style (accent gradient with a coloured glow), the window buttons the "Ghost" style (plate on
+// hover only). Theme colours come from the ThemeLook brushes registered as T.* resources.
 static class Theme {
     internal static Color Pink=Color.FromRgb(255,112,190),Purple=Color.FromRgb(161,112,255);
-    internal static Brush Text=Brush("#F3ECFA"),Muted=Brush("#8F839E");
+    internal static Brush Text=Brush("#F5F3ECFA"),Ink2=Brush("#BDFFFFFF"),Muted=Brush("#8AFFFFFF"),Fill=Brush("#16FFFFFF"),FillHover=Brush("#21FFFFFF"),Hairline=Brush("#29FFFFFF"),Rose=Brush("#FF8FA6");
     internal static SolidColorBrush Brush(string hex) { SolidColorBrush b=new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); b.Freeze(); return b; }
     internal static TextBlock Label(string text,double size,Brush brush) { return new TextBlock { Text=text,FontSize=size,Foreground=brush,FontFamily=new FontFamily("Bahnschrift"),VerticalAlignment=VerticalAlignment.Center }; }
     internal static DoubleAnimation Motion(double to,double seconds) { return new DoubleAnimation(to,TimeSpan.FromSeconds(seconds)) { EasingFunction=new CubicEase { EasingMode=EasingMode.EaseOut } }; }
     internal static void Fade(UIElement el,double to,double seconds) { el.BeginAnimation(UIElement.OpacityProperty,Motion(to,seconds)); }
     internal static LinearGradientBrush Gradient(string a,string b) { return new LinearGradientBrush((Color)ColorConverter.ConvertFromString(a),(Color)ColorConverter.ConvertFromString(b),35); }
-    internal static ResourceDictionary Resources() {
-        const string xaml=@"<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
- <Style TargetType='Button'>
-  <Setter Property='Foreground' Value='#F3ECFA'/><Setter Property='FontFamily' Value='Bahnschrift'/><Setter Property='FontSize' Value='14'/><Setter Property='Cursor' Value='Hand'/><Setter Property='Background' Value='#191222'/><Setter Property='BorderBrush' Value='#392643'/><Setter Property='BorderThickness' Value='1'/><Setter Property='Padding' Value='16,10'/>
-  <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
+    const string Streak="<Border CornerRadius='999' Margin='1' IsHitTestVisible='False'><Border.Background><LinearGradientBrush StartPoint='0,0' EndPoint='0,1'><GradientStop Color='{0}'/><GradientStop Color='#00FFFFFF' Offset='0.46'/></LinearGradientBrush></Border.Background></Border>";
+    // The plate template. streak: alpha of the specular streak at rest and the extra on hover; pressFill: the overlay while pressed; plateRest: 1 for a visible plate, 0 for the ghost (plate on hover only).
+    static string Plate(string streak,string hoverStreak,string pressFill,string plateRest,string content) {
+        return @"<ControlTemplate TargetType='Button'>
    <Grid RenderTransformOrigin='0.5,0.5'><Grid.RenderTransform><ScaleTransform x:Name='scale'/></Grid.RenderTransform>
-    <Border x:Name='body' CornerRadius='14' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'/>
-    <Border x:Name='hover' CornerRadius='14' Opacity='0' Background='#20E68CF6' IsHitTestVisible='False'/>
-    <ContentPresenter Margin='{TemplateBinding Padding}' HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' VerticalAlignment='Center'/>
+    <Grid x:Name='plate' Opacity='"+plateRest+@"'>
+     <Border CornerRadius='999' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='1'><Border.Effect><DropShadowEffect Color='Black' BlurRadius='8' ShadowDepth='2' Direction='270' Opacity='0.3'/></Border.Effect></Border>
+     <Border CornerRadius='999' Margin='1' BorderThickness='0,1,0,0' BorderBrush='#1AFFFFFF'/>
+     <Border CornerRadius='999' Margin='1' BorderThickness='0,0,0,1' BorderBrush='#33000000'/>
+     "+string.Format(Streak,streak)+@"
+    </Grid>
+    <Border x:Name='hover' CornerRadius='999' Opacity='0' Background='#0DFFFFFF' IsHitTestVisible='False'>"+string.Format(Streak,hoverStreak)+@"</Border>
+    <Border x:Name='press' CornerRadius='999' Opacity='0' Background='"+pressFill+@"' IsHitTestVisible='False'><Border CornerRadius='999' Margin='1'><Border.Background><LinearGradientBrush StartPoint='0,0' EndPoint='0,3' MappingMode='Absolute'><GradientStop Color='#3A000000'/><GradientStop Color='#00000000' Offset='1'/></LinearGradientBrush></Border.Background></Border></Border>
+    "+content+@"
    </Grid>
    <ControlTemplate.Triggers>
-    <Trigger Property='IsMouseOver' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='hover' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.2'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='hover' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.3'/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
-    <Trigger Property='IsPressed' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleX' To='0.975' Duration='0:0:0.09'/><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleY' To='0.975' Duration='0:0:0.09'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleX' To='1' Duration='0:0:0.22'/><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleY' To='1' Duration='0:0:0.22'/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
-    <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='body' Property='BorderBrush' Value='#CC8CEF'/></Trigger>
-    <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.4'/></Trigger>
+    <Trigger Property='IsMouseOver' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='hover' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.12'/><DoubleAnimation Storyboard.TargetName='plate' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.12'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='hover' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.12'/><DoubleAnimation Storyboard.TargetName='plate' Storyboard.TargetProperty='Opacity' To='"+plateRest+@"' Duration='0:0:0.18'/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
+    <Trigger Property='IsPressed' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='press' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.09'/><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleX' To='0.975' Duration='0:0:0.09'/><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleY' To='0.975' Duration='0:0:0.09'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='press' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.18'/><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleX' To='1' Duration='0:0:0.22'><DoubleAnimation.EasingFunction><ElasticEase EasingMode='EaseOut' Oscillations='1' Springiness='6'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='scale' Storyboard.TargetProperty='ScaleY' To='1' Duration='0:0:0.22'><DoubleAnimation.EasingFunction><ElasticEase EasingMode='EaseOut' Oscillations='1' Springiness='6'/></DoubleAnimation.EasingFunction></DoubleAnimation></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
+    <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.38'/></Trigger>
    </ControlTemplate.Triggers>
-  </ControlTemplate></Setter.Value></Setter>
+  </ControlTemplate>";
+    }
+    static string ButtonStyle(string key,string foreground,string background,string border,string template,string extra) {
+        return "<Style "+key+@" TargetType='Button'>
+  <Setter Property='Foreground' Value='"+foreground+@"'/><Setter Property='FontFamily' Value='Bahnschrift'/><Setter Property='FontSize' Value='14'/><Setter Property='Cursor' Value='Hand'/><Setter Property='Background' Value='"+background+@"'/><Setter Property='BorderBrush' Value='"+border+@"'/><Setter Property='Padding' Value='16,8'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
+  <Setter Property='Template'><Setter.Value>"+template+@"</Setter.Value></Setter>"+extra+@"
  </Style>
- <Style TargetType='ToggleButton'>
-  <Setter Property='Cursor' Value='Hand'/><Setter Property='Width' Value='48'/><Setter Property='Height' Value='28'/>
+";
+    }
+    internal static ResourceDictionary Resources(ThemeLook look) {
+        const string label="<ContentPresenter Margin='{TemplateBinding Padding}' HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' VerticalAlignment='Center'/>";
+        const string shadowedLabel="<ContentPresenter Margin='{TemplateBinding Padding}' HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' VerticalAlignment='Center'><ContentPresenter.Effect><DropShadowEffect Color='Black' BlurRadius='2' ShadowDepth='1' Direction='270' Opacity='0.25'/></ContentPresenter.Effect></ContentPresenter>";
+        string xaml=@"<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' xmlns:m='clr-namespace:MicControl;assembly=MicControl'>
+ <m:HalfRadius x:Key='Half'/>
+ <Style x:Key='Focus'><Setter Property='Control.Template'><Setter.Value><ControlTemplate><Border CornerRadius='999' Margin='-4' BorderThickness='2' BorderBrush='{DynamicResource T.Focus}'/></ControlTemplate></Setter.Value></Setter></Style>
+"+ButtonStyle("","#F5F3ECFA","#16FFFFFF","#29FFFFFF",Plate("#13FFFFFF","#09FFFFFF","#14FFFFFF","1",label),"")
++ButtonStyle("x:Key='Tinted'","White","#21FFFFFF","#47FFFFFF",Plate("#42FFFFFF","#14FFFFFF","#14000000","1",shadowedLabel),"")
++ButtonStyle("x:Key='Ghost'","#8AFFFFFF","#16FFFFFF","#29FFFFFF",Plate("#0FFFFFFF","#09FFFFFF","#14FFFFFF","0",label),"<Style.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter Property='Foreground' Value='#F5F3ECFA'/></Trigger></Style.Triggers>")
++@" <Style TargetType='ToggleButton'>
+  <Setter Property='Cursor' Value='Hand'/><Setter Property='Width' Value='48'/><Setter Property='Height' Value='28'/><Setter Property='Background' Value='#21FFFFFF'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
   <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ToggleButton'>
-   <Grid><Border CornerRadius='14' Background='#24192E' BorderBrush='#4B325A' BorderThickness='1'/><Border x:Name='lit' CornerRadius='14' Opacity='0'><Border.Background><LinearGradientBrush StartPoint='0,0' EndPoint='1,1'><GradientStop Color='#D778C1'/><GradientStop Color='#8959D1' Offset='1'/></LinearGradientBrush></Border.Background></Border>
-   <Ellipse x:Name='knob' Fill='#F8EAFF' Width='18' Height='18' HorizontalAlignment='Left' Margin='5,0,0,0'><Ellipse.RenderTransform><TranslateTransform x:Name='slide'/></Ellipse.RenderTransform></Ellipse>
+   <Grid><Border CornerRadius='14' Background='#16FFFFFF' BorderBrush='#29FFFFFF' BorderThickness='1'/><Border CornerRadius='14' Margin='1' BorderThickness='0,1,0,0' BorderBrush='#1AFFFFFF'/><Border x:Name='lit' CornerRadius='14' Opacity='0' Background='{TemplateBinding Background}'/>
+   <Ellipse x:Name='knob' Fill='#F5FFFFFF' Width='18' Height='18' HorizontalAlignment='Left' Margin='5,0,0,0'><Ellipse.Effect><DropShadowEffect Color='Black' BlurRadius='4' ShadowDepth='1' Direction='270' Opacity='0.3'/></Ellipse.Effect><Ellipse.RenderTransform><TranslateTransform x:Name='slide'/></Ellipse.RenderTransform></Ellipse>
    </Grid><ControlTemplate.Triggers>
-    <Trigger Property='IsChecked' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='20' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.25'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='0' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.25'/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
-    <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='knob' Property='Fill' Value='#FFAFE1'/></Trigger>
+    <Trigger Property='IsChecked' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='20' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.18'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='0' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.18'/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
    </ControlTemplate.Triggers>
   </ControlTemplate></Setter.Value></Setter>
  </Style>
- <Style TargetType='ListBoxItem'><Setter Property='Foreground' Value='#D7CAE3'/><Setter Property='Padding' Value='12,8'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ListBoxItem'><Border x:Name='b' Background='Transparent' CornerRadius='8' Padding='{TemplateBinding Padding}' BorderThickness='1' BorderBrush='Transparent'><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property='IsSelected' Value='True'><Setter TargetName='b' Property='Background' Value='#513058'/><Setter Property='Foreground' Value='#FFE6F6'/></Trigger><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='#AF71B9'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
- <Style TargetType='ScrollBar'><Setter Property='Width' Value='7'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ScrollBar'><Track x:Name='PART_Track' IsDirectionReversed='True'><Track.DecreaseRepeatButton><RepeatButton Command='ScrollBar.PageUpCommand' Opacity='0' Focusable='False'/></Track.DecreaseRepeatButton><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType='Thumb'><Border x:Name='grip' Background='#61466E' CornerRadius='3' Margin='1,0'/><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='grip' Property='Background' Value='#B07EBD'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command='ScrollBar.PageDownCommand' Opacity='0' Focusable='False'/></Track.IncreaseRepeatButton></Track></ControlTemplate></Setter.Value></Setter></Style>
+ <Style TargetType='ListBoxItem'><Setter Property='Foreground' Value='#BDFFFFFF'/><Setter Property='Padding' Value='12,8'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ListBoxItem'><Border x:Name='b' Background='Transparent' CornerRadius='10' Padding='{TemplateBinding Padding}' BorderThickness='1' BorderBrush='Transparent'><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property='IsSelected' Value='True'><Setter TargetName='b' Property='Background' Value='{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}'/><Setter Property='Foreground' Value='#F5F3ECFA'/></Trigger><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='#29FFFFFF'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+ <Style TargetType='ScrollBar'><Setter Property='Width' Value='7'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ScrollBar'><Track x:Name='PART_Track' IsDirectionReversed='True'><Track.DecreaseRepeatButton><RepeatButton Command='ScrollBar.PageUpCommand' Opacity='0' Focusable='False'/></Track.DecreaseRepeatButton><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType='Thumb'><Border x:Name='grip' Background='#2EFFFFFF' CornerRadius='3' Margin='1,0'/><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='grip' Property='Background' Value='#52FFFFFF'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command='ScrollBar.PageDownCommand' Opacity='0' Focusable='False'/></Track.IncreaseRepeatButton></Track></ControlTemplate></Setter.Value></Setter></Style>
  <Style TargetType='Slider'><Setter Property='Cursor' Value='Hand'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Slider'>
   <Grid Margin='0,0,0,0'><Track x:Name='PART_Track' Minimum='{TemplateBinding Minimum}' Maximum='{TemplateBinding Maximum}' Value='{TemplateBinding Value}' Orientation='Horizontal'>
-   <Track.DecreaseRepeatButton><RepeatButton Command='Slider.DecreaseLarge' Focusable='False'><RepeatButton.Template><ControlTemplate TargetType='RepeatButton'><Border Height='3' CornerRadius='2' Background='#B774CC'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
-   <Track.Thumb><Thumb Width='15' Height='15'><Thumb.Template><ControlTemplate TargetType='Thumb'><Ellipse x:Name='dot' Fill='#F4DDFB' Stroke='#D598E5' StrokeThickness='1'><Ellipse.Effect><DropShadowEffect Color='#C17EE2' BlurRadius='10' ShadowDepth='0' Opacity='0.65'/></Ellipse.Effect></Ellipse><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='dot' Property='Fill' Value='White'/></Trigger><Trigger Property='IsDragging' Value='True'><Setter TargetName='dot' Property='Fill' Value='#FFB5EB'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
-   <Track.IncreaseRepeatButton><RepeatButton Command='Slider.IncreaseLarge' Focusable='False'><RepeatButton.Template><ControlTemplate TargetType='RepeatButton'><Border Height='3' CornerRadius='2' Background='#37273F'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
-  </Track></Grid><ControlTemplate.Triggers><Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.35'/></Trigger></ControlTemplate.Triggers>
+   <Track.DecreaseRepeatButton><RepeatButton Command='Slider.DecreaseLarge' Focusable='False'><RepeatButton.Template><ControlTemplate TargetType='RepeatButton'><Border Height='3' CornerRadius='2' Background='{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+   <Track.Thumb><Thumb Width='15' Height='15'><Thumb.Template><ControlTemplate TargetType='Thumb'><Ellipse x:Name='dot' Fill='#F5FFFFFF' Stroke='{Binding BorderBrush, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}' StrokeThickness='1' Effect='{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}'/><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='dot' Property='Fill' Value='White'/></Trigger><Trigger Property='IsDragging' Value='True'><Setter TargetName='dot' Property='Fill' Value='{Binding BorderBrush, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+   <Track.IncreaseRepeatButton><RepeatButton Command='Slider.IncreaseLarge' Focusable='False'><RepeatButton.Template><ControlTemplate TargetType='RepeatButton'><Border Height='3' CornerRadius='2' Background='#1FFFFFFF'/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+  </Track></Grid><ControlTemplate.Triggers><Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.38'/></Trigger></ControlTemplate.Triggers>
  </ControlTemplate></Setter.Value></Setter></Style>
 </ResourceDictionary>";
-        return (ResourceDictionary)XamlReader.Parse(xaml);
+        // Pills: a Border scales an oversized CornerRadius into elliptical corners, so every plate binds its radius to half of the button's height (inset for the layers 1 px inside, outset for the focus ring).
+        xaml=xaml.Replace("CornerRadius='999' Margin='-4'",Radius(-4)+" Margin='-4'").Replace("CornerRadius='999' Margin='1'",Radius(1)+" Margin='1'").Replace("CornerRadius='999'",Radius(0));
+        ResourceDictionary dictionary=(ResourceDictionary)XamlReader.Parse(xaml); look.Register(dictionary); return dictionary;
     }
+    static string Radius(int inset) { return "CornerRadius='{Binding ActualHeight, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource Half}, ConverterParameter="+inset+"}'"; }
+}
+public class HalfRadius : System.Windows.Data.IValueConverter {
+    public object Convert(object value,Type targetType,object parameter,System.Globalization.CultureInfo culture) { double inset=parameter==null?0:double.Parse(parameter.ToString(),System.Globalization.CultureInfo.InvariantCulture); return new CornerRadius(Math.Max(0,(double)value/2-inset)); }
+    public object ConvertBack(object value,Type targetType,object parameter,System.Globalization.CultureInfo culture) { throw new NotSupportedException(); }
 }
 // Vector emoji hearts keep their color and sharp edges independent of OS emoji fonts.
 class HeartView : Grid {

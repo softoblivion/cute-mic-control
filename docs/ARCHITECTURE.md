@@ -30,8 +30,9 @@ cute-mic-control\
     Paths.cs           AppPaths: exe path and the portable data folder (the only place that builds these paths)
     Updater.cs         self-update: check, verified download, apply mode (no WPF / WinForms references)
     SettingsWindow.cs  settings window, tray icon and menu, update UI glue, launch-at-login registry value
-    Theme.cs           styles, HeartView, GlowOverlay (desktop indicator)
-    Palettes.cs        five on / off colour pairs
+    Theme.cs           control styles (plate buttons, switch, slider, list), HeartView, GlowOverlay (desktop indicator)
+    Themes.cs          the four window themes, the colour derivation and the live brushes the window recolours
+    Palettes.cs        five on / off colour pairs of the heart indicator
     Keyboard.cs        Native P/Invoke, KeyCatalog (248 key codes), KeyEngine (state machine), KeyboardHook
     CoreAudio.cs       Audio.Read / Audio.Toggle over Core Audio
     Tests.cs           --self-test: keyboard engine, preferences, live UI, hook, audio toggle, rendered previews
@@ -51,7 +52,8 @@ cute-mic-control\
 | Runtime paths | `src\Paths.cs` | this file, section 5 | `AppPaths.Data`, `.Settings`, `.Updates`, `.SelfTest`; `MIC_CONTROL_HOME` override |
 | Self-update | `src\Updater.cs` | `docs\SELF_UPDATE.md` | `Updater`, `UpdateApply`, `UpdateSchedule`, `SemVer`, `Checksums`, `WebNet` |
 | Settings window and tray | `src\SettingsWindow.cs` | `docs\USER_GUIDE.md` | the only UI consumer of `Updater` |
-| Indicator and theme | `src\Theme.cs`, `src\Palettes.cs` | `docs\USER_GUIDE.md` | |
+| Indicator and styles | `src\Theme.cs`, `src\Palettes.cs` | `docs\USER_GUIDE.md` | the palettes colour the heart only |
+| Window themes | `src\Themes.cs` | this file, section 8 | `ThemeSpec`, `Themes.All`, `ThemeLook` |
 | Hotkey | `src\Keyboard.cs` | `docs\USER_GUIDE.md` | `KeyEngine` is pure logic, covered by the self-test |
 | Microphone | `src\CoreAudio.cs` | `docs\USER_GUIDE.md` | polled every 500 ms |
 | Tests | `src\Tests.cs`, `tests\UpdateTests.cs` | `docs\BUILD.md` | |
@@ -63,7 +65,7 @@ that folder for tests and manual runs). Moving the exe together with this folder
 
 | Path | Content |
 |---|---|
-| `settings.xml` | `<MicControl modifiers key overlay indicatorScale palette autoDownloadUpdates />` (attribute names follow the file's existing camelCase) |
+| `settings.xml` | `<MicControl modifiers key overlay indicatorScale palette autoDownloadUpdates theme />` (attribute names follow the file's existing camelCase; `theme` is a theme name, unknown or missing -> `bloom`) |
 | `updates\` | `MicControl-<version>.exe` (verified download), `.part` while downloading, `applied.json` marker, `apply.log` |
 | `self-test\` | `self-test.txt` and PNG previews of `--self-test` |
 
@@ -89,3 +91,25 @@ Launch -> background check of GitHub Releases (repeated every 5 minutes, back-of
 **Restart to update** -> on click the downloaded exe runs in apply mode, waits for this process to exit, swaps the
 exe and starts it in the tray -> the new instance removes `MicControl.exe.old` and shows "Updated to vX.Y.Z".
 Details, messages and failure handling: `docs\SELF_UPDATE.md`.
+
+## 8. Window themes (2.0.0)
+
+The settings window follows the look shared by the workspace's desktop apps (the web kit `_shared\liquid_ui`,
+sections Themes, Buttons and Motion of its reference): Mic Control re-expresses the same values in WPF and vendors
+nothing. `src\Themes.cs` holds the four themes (`dusk`, `nova`, `frost`, `bloom`; each a hue and an accent) and the
+kit's derivation (`mix(a, b, k) = a + (b - a) * k` per channel: accent light / deep / ink, background top / mid /
+bottom, line colour, glows, focus ring, tints), so the colours match the other apps to the rounding of a channel.
+
+`ThemeLook` owns the live brushes and effects (accent, accent ink, accent gradient, frame gradient, the two
+background fields, the orbit ring, the glows). The window and the controls hold them as local values or bindings;
+`Apply()` recolours them in place, animated over 320 ms. They are never handed out through a style resource: WPF
+freezes a brush that a style setter delivers, which would end the animation. The focus ring is the one resource
+(`T.Focus`), replaced by a frozen brush on every change.
+
+`Theme.Resources()` builds the control styles from XAML: the plate button template (fill, hairline, top bevel,
+bottom shade, drop shadow, specular streak; hover over 120 ms, pressed 90 ms with a 2.5 % squish and an elastic
+release over 220 ms, focus ring 2 px, disabled opacity 0.38), the `Tinted` style of the one primary button (accent
+gradient, coloured glow, text shadow) and the `Ghost` style of the window buttons (plate on hover only). Pills bind
+their corner radius to half of the control's height (`HalfRadius`), because a Border scales an oversized radius into
+elliptical corners. The preference `Prefs.Theme` is saved with the other settings; the self-test switches a theme
+through its chip and checks the preference round trip.
