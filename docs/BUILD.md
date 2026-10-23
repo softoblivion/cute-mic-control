@@ -12,10 +12,18 @@ Verified 2026-10-21: compiler 4.8.9221.0 (C# 5), Windows 11.
 powershell -ExecutionPolicy Bypass -File build\build.ps1
 ```
 
-Steps: compile `tests\UpdateTests.cs` with `src\Updater.cs`, `src\Paths.cs`, `src\Version.cs` into
-`obj\tests\MicControl.Tests.exe` and run it (a failure stops the build), compile `src\*.cs` into
-`release\MicControl.exe` (WinExe, AnyCPU, about 100 KB), write `release\SHA256SUMS`
+Steps: compile `tests\UpdateTests.cs` with `src\Paths.cs`, `src\UpdateSetup.cs`, `src\Version.cs` and the vendored
+library `src\vendor\selfupdate-dotnet\*.cs` into `obj\tests\MicControl.Tests.exe` and run it (a failure stops the
+build), write the fonts of `src\fonts\*.ttf` into `obj\MicControl.g.resources` (keys `fonts/<file name>` in lower
+case, the resource set WPF reads `pack://application:,,,/fonts/` from), compile `src\*.cs` and the library into
+`release\MicControl.exe` with that resource (WinExe, AnyCPU, about 330 KB), write `release\SHA256SUMS`
 (`<sha256 lowercase>  MicControl.exe`, LF).
+
+The update library is not edited here: its copy in `src\vendor\selfupdate-dotnet\` is synced from the library's own
+source and `VENDORED.txt` names the version. The fonts are generated, not hand-edited: `python
+build\make-fonts.py <folder with Sora-latin.woff2 and GeistMono-Variable.woff2> src\fonts` (needs `fonttools` and
+`brotli`) writes static instances with their exact weights and without the `STAT` table (see `ARCHITECTURE.md`,
+section 10).
 
 | Parameter | Effect |
 |---|---|
@@ -26,7 +34,9 @@ Steps: compile `tests\UpdateTests.cs` with `src\Updater.cs`, `src\Paths.cs`, `sr
 ## 3. Tests
 
 - Update logic: run by every build (section 2). Output: one `PASS` / `FAIL` line per test and a total.
-- Self-test of the app (keyboard engine, settings, live window, hook, microphone toggle, rendered previews):
+- Self-test of the app (keyboard engine, settings, live window, hook, microphone toggle, embedded faces, every text
+  on a type role, title bar, Settings sheet, Scale on content and window, the spring of the scale thumb, rendered
+  previews at 2x, which are also the README screenshots in `docs\assets\`):
   quit the running app, then
 
   ```powershell

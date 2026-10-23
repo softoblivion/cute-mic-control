@@ -4,8 +4,8 @@ Everything about using the app. Installation and the first steps are in the [REA
 
 ## Usage
 
-1. Put `MicControl.exe` into a folder of its own and open it. The settings window opens and the heart appears in
-   the top-left corner of the primary display.
+1. Put `MicControl.exe` into a folder of its own and open it. The window opens and the heart appears in the
+   top-left corner of the primary display.
 2. Press the hotkey (default **Ctrl + Alt + M**) to mute or unmute the microphone.
 3. Close the window; the app keeps running in the system tray.
 
@@ -14,17 +14,23 @@ dependencies are needed.
 
 | Action | How |
 |---|---|
-| Mute / unmute | the hotkey (default **Ctrl + Alt + M**), **Mute** in Settings, or **Toggle microphone** in the tray menu |
-| Change the hotkey | Settings → click the shortcut → record or pick a key → **Apply** |
-| Open Settings | double-click the tray heart, or tray menu → **Settings** |
-| Install an update | **Install** or **Restart to update** in the update window that opens when a new version is found (tray menu → **Restart to update** reopens it), or click the "Mic Control X.Y.Z is ready" notification |
+| Mute / unmute | the hotkey (default **Ctrl + Alt + M**), **Mute** in the window, or **Toggle microphone** in the tray menu |
+| Change the hotkey | click the shortcut in the window → record or pick a key → **Apply** |
+| Open the window | double-click the tray heart, or tray menu → **Settings** |
+| Open Settings (appearance, scale, launch at login, updates) | the gear in the title bar |
+| Install an update | **Install** or **Restart to update** in the update window that opens when a new version is found (the version in the title bar or tray menu → **Restart to update** reopens it), or click the "Mic Control X.Y.Z is ready" notification |
 | Quit | tray menu → **Quit** (the microphone keeps its current state) |
 
-The entire interface is in English, including the system tray, keyboard picker, tooltips and error messages. Drag
-the top of the window to move it. On smaller screens, the settings area can be scrolled.
+The entire interface is in English, including the system tray, keyboard picker, tooltips and error messages.
 
-Closing or minimizing Settings hides the window to the tray. Double-click the tray heart to reopen it. **Quit**
-exits the app. Quitting leaves the microphone in its current state.
+The window has a title bar like the other softoblivion apps: the app name and the version on the left; Settings
+(the gear), Minimize and Close on the right. Drag the title bar to move the window. The version shows a dot while
+an update is available (mint once it is ready to install); clicking it checks for updates or opens the update
+window. The main window holds the heart, the microphone state, **Mute**, the hotkey and the **Indicator** switch;
+the gear opens the Settings sheet over it (the sheet scrolls; the gear, its close button or Esc close it).
+
+Minimize and Close hide the window to the tray. Double-click the tray heart to reopen it. **Quit** exits the app.
+Quitting leaves the microphone in its current state.
 
 The tray menu has **Toggle microphone**, **Settings**, the version, **Check for updates** (**Download update** or
 **Downloading update…** while a new version is known; both open the update window), **Restart to update** once a
@@ -35,8 +41,8 @@ new version is ready (opens the update window), and **Quit**.
 | Key | Action |
 |---|---|
 | **Ctrl + Alt + M** | Mute or unmute the microphone (the default hotkey; any key or combination can replace it) |
-| Arrow keys | Move the theme choice while a theme chip has the focus |
-| `Esc` | In the update window: the same as **Later** |
+| Arrow keys | Move the theme choice while a theme chip has the focus, or the scale choice while the Scale control has it |
+| `Esc` | Close the hotkey editor or the Settings sheet; in the update window: the same as **Later** |
 
 **Changing the hotkey** — in Settings, click the current shortcut. Click the top field to record a key or
 combination, or search the key list and select Ctrl, Alt, Shift and Win modifiers. Click **Apply** to save. Until
@@ -53,15 +59,22 @@ and toggle on release only when they were not used in another shortcut.
 
 ## Settings
 
-| Setting | Meaning |
-|---|---|
-| **Hotkey** | The shortcut that mutes and unmutes the microphone (see [Keyboard](#keyboard)). |
-| **Indicator** | Show or hide the heart in the top-left corner of the primary display. It stays above ordinary windows and lets clicks pass through. |
-| **Indicator size** | **50% to 200%**, in steps of 5%; the default is 100%. Changes preview immediately on the desktop and save automatically. Size includes the transparent area used by the glow; the heart and glow scale together. |
-| **Theme** | The background colour and accent of the window: **Dusk**, **Nova**, **Frost** or **Bloom** (the default). |
-| **Color palette** | One of five coordinated on / off colour pairs for the heart; the default is Nebula. |
-| **Launch at login** | Start in the system tray when the current user signs into Windows. |
-| **Download updates automatically** | On by default. A new version found by the update check is downloaded in the background and verified; installing it always waits for a click on **Restart to update**. Off: the update window offers **Install** instead. |
+| Setting | Where | Meaning |
+|---|---|---|
+| **Hotkey** | window | The shortcut that mutes and unmutes the microphone (see [Keyboard](#keyboard)). |
+| **Indicator** | window | Show or hide the heart in the top-left corner of the primary display. It stays above ordinary windows and lets clicks pass through. |
+| **Indicator size** | Settings → Appearance | **50% to 200%**, in steps of 5%; the default is 100%. Changes preview immediately on the desktop and save automatically. Size includes the transparent area used by the glow; the heart and glow scale together. |
+| **Theme** | Settings → Appearance | The background colour and accent of the window: **Dusk**, **Nova**, **Frost** or **Bloom** (the default). |
+| **Color palette** | Settings → Appearance | One of five coordinated on / off colour pairs for the heart; the default is Nebula. |
+| **Scale** | Settings → Appearance | Size of the window and its text: **100 %**, **125 %**, **150 %**, **175 %** or **200 %** on top of the Windows display scaling; the default is 100 %. |
+| **Launch at login** | Settings → General | Start in the system tray when the current user signs into Windows. |
+| **Download updates automatically** | Settings → Updates | On by default. A new version found by the update check is downloaded in the background and verified; installing it always waits for a click on **Restart to update**. Off: the update window offers **Install** instead. |
+
+**Scale** — the window and everything in it grow together and stay sharp; the heart indicator on the desktop keeps
+its own size setting. A choice applies at once, keeps the window centred and is saved; the next start opens at that
+size. Steps that would make the window larger than the screen are dimmed; when a saved step does not fit (for
+example on a smaller monitor), the window opens at the largest step that fits and keeps the saved choice for a
+larger screen. The update window follows the same scale.
 
 **Theme** — **Dusk** (cobalt with a coral accent), **Nova** (violet with an ember accent), **Frost** (ice blue with
 a lilac accent) and **Bloom** (magenta with a mint accent). The accent colours the Mute button, the slider, the
@@ -102,6 +115,7 @@ Settings are stored in `cute-mic-control_data\settings.xml` next to the exe and 
 | `theme` | `bloom` | Window theme: `dusk`, `nova`, `frost` or `bloom` (an unknown name falls back to `bloom`) |
 | `palette` | `0` | 0 Nebula, 1 Aurora, 2 Glacier, 3 Ember, 4 Lunar |
 | `autoDownloadUpdates` | `True` | Download a new version in the background; installing is always a click on **Restart to update** |
+| `ui_scale` | `100` | Scale of the window in percent: 100, 125, 150, 175 or 200 (other numbers snap to the nearest step) |
 
 **Launch at login** is not in the file: it is the value `MicControlGlow` under
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; changing the setting also removes the legacy `MicMuteGlow`
@@ -120,7 +134,7 @@ user profile. The environment variable `MIC_CONTROL_HOME` replaces that folder (
 
 | Path | Content |
 |---|---|
-| `settings.xml` | Shortcut, indicator, theme, palette, update switch (see [Settings file](#settings-file)) |
+| `settings.xml` | Shortcut, indicator, theme, palette, scale, update switch (see [Settings file](#settings-file)) |
 | `updates\` | Downloaded versions and the update log `apply.log` |
 | `self-test\` | Report and previews of `MicControl.exe --self-test` ([BUILD.md](BUILD.md)) |
 
@@ -138,8 +152,8 @@ synthetic input is ignored. Its only network access is the update check and down
 ## Updates
 
 - The app checks GitHub Releases of `softoblivion/cute-mic-control` on every start, then every 5 minutes while it
-  runs (also while the window is hidden in the tray), and with **Check for updates** in the tray menu or in
-  Settings. After a failed check the wait grows (10, 20, 40, up to 60 minutes) and returns to 5 minutes once a
+  runs (also while the window is hidden in the tray), and with **Check for updates** in the tray menu, the version in the title bar or the
+  Settings sheet. After a failed check the wait grows (10, 20, 40, up to 60 minutes) and returns to 5 minutes once a
   check succeeds; nothing is checked while Windows reports no network connection.
 - With **Download updates automatically** on (the default) a new version is downloaded at once in the background,
   but it is installed only when you choose **Restart to update**. A new version is saved to

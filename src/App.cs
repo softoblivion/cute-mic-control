@@ -4,11 +4,12 @@ using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Xml;
+using SelfUpdate;
 namespace MicControl {
 static class Program {
     internal static bool Test;
     [STAThread] static int Main(string[] args) {
-        if(args.Length>0 && args[0]==UpdateApply.Flag) return UpdateApply.Run(args);
+        if(UpdateApply.IsApplyMode(args)) return UpdateApply.Run(args,AppUpdate.RelaunchArguments);
         Native.SetProcessDPIAware(); Test=args.Contains("--self-test"); bool fresh;
         using(Mutex mutex=new Mutex(true,"Local\\MicControl.Glow.App",out fresh)) {
             if(!fresh && !Test) { MessageBox.Show("The app is already running. Open Settings from the system tray.","Mic Control"); return 0; }
@@ -27,7 +28,7 @@ static class Program {
 }
 class Preferences {
     internal uint Modifiers=3,Key=77; internal bool Overlay=true,AutoDownloadUpdates=true;
-    internal int IndicatorScale=100,PaletteIndex=0; internal string Theme=Themes.Default;
+    internal int IndicatorScale=100,PaletteIndex=0,UiScale=MicControl.UiScale.Default; internal string Theme=Themes.Default;
     internal static string PathName { get { return AppPaths.Settings; } }
     // Portable file first; otherwise import the profile settings of 1.0.0 once (never when MIC_CONTROL_HOME redirects the data).
     internal static Preferences Load() {
@@ -44,13 +45,14 @@ class Preferences {
             if(int.TryParse(d.DocumentElement.GetAttribute("palette"),out palette) && palette>=0 && palette<Palette.All.Length)p.PaletteIndex=palette;
             bool auto; if(bool.TryParse(d.DocumentElement.GetAttribute("autoDownloadUpdates"),out auto))p.AutoDownloadUpdates=auto;
             string theme=d.DocumentElement.GetAttribute("theme"); if(Themes.IsKnown(theme))p.Theme=theme;
+            int ui; if(int.TryParse(d.DocumentElement.GetAttribute("ui_scale"),out ui))p.UiScale=MicControl.UiScale.Normalize(ui);
         } catch { } return p;
     }
     internal void Save() { Save(PathName); }
     internal void Save(string path) {
         Directory.CreateDirectory(Path.GetDirectoryName(path)); XmlDocument d=new XmlDocument(); XmlElement e=d.CreateElement("MicControl"); d.AppendChild(e);
         e.SetAttribute("modifiers",Modifiers.ToString()); e.SetAttribute("key",Key.ToString()); e.SetAttribute("overlay",Overlay.ToString());
-        e.SetAttribute("indicatorScale",IndicatorScale.ToString()); e.SetAttribute("palette",PaletteIndex.ToString()); e.SetAttribute("autoDownloadUpdates",AutoDownloadUpdates.ToString()); e.SetAttribute("theme",Theme);
+        e.SetAttribute("indicatorScale",IndicatorScale.ToString()); e.SetAttribute("palette",PaletteIndex.ToString()); e.SetAttribute("autoDownloadUpdates",AutoDownloadUpdates.ToString()); e.SetAttribute("theme",Theme); e.SetAttribute("ui_scale",UiScale.ToString());
         string tmp=path+".tmp"; d.Save(tmp); if(File.Exists(path))File.Replace(tmp,path,null); else File.Move(tmp,path);
     }
     internal static string KeyName(uint mods,uint key) { return ((mods&2)!=0?"Ctrl + ":"")+((mods&1)!=0?"Alt + ":"")+((mods&4)!=0?"Shift + ":"")+((mods&8)!=0?"Win + ":"")+KeyCatalog.Name(key); }

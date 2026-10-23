@@ -1,8 +1,14 @@
 # Self-update
 
-Owning document of `src\Updater.cs`. The design is the one the other softoblivion desktop apps use (check on launch,
-verified download, the downloaded exe swaps itself in), implemented in C# 5 inside this project. Tests:
-`tests\UpdateTests.cs`.
+How Mic Control updates itself. The engine is the C# update library `selfupdate-dotnet`, vendored as
+`src\vendor\selfupdate-dotnet\` (namespace `SelfUpdate`; C# 5, no WPF / WinForms; `VENDORED.txt` names the version;
+the copy is synced from the library, never edited in this repository). The app supplies its values in
+`src\UpdateSetup.cs` (`AppUpdate.Config()`: repository, asset `MicControl.exe`, app name, version, `updates\` in the
+data folder, the exe path, `MIC_CONTROL_RELEASE_URL`; relaunch arguments `--startup`), routes the apply mode first
+thing in `Program.Main` and shows the status in the title bar, the Settings sheet, the tray and the update window
+(section 8). The design is the one the other softoblivion desktop apps use (check on launch, verified download, the
+downloaded exe swaps itself in). Tests: `tests\UpdateTests.cs` (the app's configuration on the update path; the
+library carries its own full suite).
 
 ## 1. Release layout
 
@@ -41,8 +47,9 @@ seconds, -1 unknown). The update window (section 8) shows them.
 ## 3. Check
 
 - When: on every launch (in the background, the window and hotkey work at once), then every 5 minutes while the
-  app runs (a `DispatcherTimer` on the app dispatcher, so it keeps firing while the window is hidden in the tray),
-  and on **Check for updates** (tray menu or settings window). `UpdateSchedule.Wait(failures)` gives the wait:
+  app runs (the library's `UpdateScheduler`, a thread-pool timer independent of any window, so it keeps firing while
+  the window is hidden in the tray), and on **Check for updates** (tray menu, the version pill or the Settings
+  sheet). `UpdateSchedule.Wait(failures)` gives the wait:
   5 minutes, doubled after every failed check (10, 20, 40) up to 60 minutes; the first check that ends in another
   stage returns it to 5 minutes. A periodic tick is skipped, without counting as a failure, while Windows reports
   no network connection (`InternetGetConnectedState`) and while an update is already downloaded and waits for the
@@ -118,14 +125,18 @@ the fix's release notes must say so. Version 1.0.0 has no updater: its copies ne
 
 ## 7. Testing
 
-- Unit tests (`tests\UpdateTests.cs`, run by `build\build.ps1`): version parsing and compare, `SHA256SUMS`
-  parsing, file hash, check outcomes with a fake network (available, up to date, offline, limit, no release, bad
-  tag, missing asset, release document override, API document with notes / date / size and its headers, API 403 /
-  429 / garbage / no tag / offline falling back to the redirect), download (ready, progress, checksum / size mismatch, missing
-  checksum), verified earlier download, automatic download, apply (marker, helper arguments, refusals), startup
-  cleanup and the one-time toast, and the swap against a running stand-in exe in a folder with spaces and
-  parentheses (rename while running, restore on a failed copy, the full apply mode waiting for the stand-in).
-- End-to-end before every release that touches the update path: `docs\BUILD.md`, section 5.
+- App tests (`tests\UpdateTests.cs`, run by `build\build.ps1`, compiled with the vendored library): the app's
+  configuration (repository, asset, names, data folder, override variable, relaunch arguments), the API and
+  redirect URLs of this repository and the app's messages, `MIC_CONTROL_RELEASE_URL`, the download as
+  `MicControl-<version>.exe` and the helper arguments, the apply-mode routing and the swap of a running stand-in exe
+  in a folder with spaces and parentheses, the data folder.
+- Library tests (in the library, on .NET Framework 4 and .NET 8): version parsing, `SHA256SUMS`, every check
+  outcome with a fake network (API document, redirect fallback, override, errors), download and verification,
+  apply and its refusals, startup cleanup, the swap and the apply mode with relaunch, the schedule and
+  `UpdateScheduler`, the JSON reader. Before the library was extracted, the full former suite of this repository ran
+  unchanged against the vendored copy and passed.
+- End-to-end before every release that touches the update path (2.2.0 did: the engine moved into the library):
+  `docs\BUILD.md`, section 5.
 - The update window is not part of `--self-test` (like the updater, it is created only outside the self-test); it is
   checked in the end-to-end run against a local release document with notes.
 
@@ -138,8 +149,9 @@ a top-level window of its own, so it works while the settings window is hidden i
 through the dispatcher-marshalled `OnStatus` of the settings window.
 
 - Look: the settings window's frame (theme `Frame` / `FrameEdge` / `FrameShadow`, the notes on a `Sheet` panel),
-  Bahnschrift, the shared control styles (`Tinted` for the main button, the plain plate for **Later**, `Ghost` for
-  the close button), entrance fade and rise. 460 wide, height to content up to 70 % of the work area (the notes
+  the type roles of the app (title Display, meta and progress Caption, notes Body, code Mono), the shared control
+  styles (`Tinted` for the main button, the plain plate for **Later**, the title bar close fill for the close
+  button), entrance fade and rise. Logical 420 wide times the app's Scale, height to content up to 70 % of the work area (the notes
   scroll), fixed size, centred over the settings window when it is visible, otherwise on the work area; dragged by
   its header. A theme change recolours it with the settings window (shared `ThemeLook`).
 - Opens by itself the first time in a run that a status names a newer version (`Available`, `Downloading` or
