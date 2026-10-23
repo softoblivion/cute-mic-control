@@ -1,129 +1,32 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Net;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Web.Script.Serialization;
-namespace MicControl {
-// Self-update from GitHub Releases. Contract: docs\SELF_UPDATE.md. No WPF or WinForms here: the UI subscribes to
-// OnStatus / OnToast and marshals to its own thread; the unit tests in tests\ run this file without a window.
+namespace SelfUpdate {
+// Self-update of a portable one-file Windows exe from the GitHub Releases of its repository: check, size and
+// SHA-256 verified download, apply through the downloaded exe (UpdateApply), cleanup in the new instance. No UI
+// here: the host subscribes to OnStatus / OnToast (worker threads) and marshals them to its own UI thread.
 enum UpdateStage { Idle, Checking, UpToDate, Available, Downloading, Ready, Error }
 class UpdateStatus {
     // Notes: Markdown body of the release (null when the source has none); PublishedAt: epoch seconds, -1 unknown.
     internal UpdateStage Stage=UpdateStage.Idle; internal string Current,Latest,Notes,Message="Updates are not checked yet"; internal long Size=-1,PublishedAt=-1; internal double Progress; internal bool CanApply;
     internal UpdateStatus Copy() { return (UpdateStatus)MemberwiseClone(); }
 }
+// Everything app-specific comes in here. Repo "owner/name"; AssetName the release asset and the running exe's file
+// name ("App.exe"); AppName for messages; Version "X.Y.Z" of the running build; UpdatesDir a writable folder for
+// downloads and the apply marker; ExePath the running exe (empty: download works, apply is refused);
+// ReleaseUrlVariable an environment variable that replaces the release source in tests (empty: none).
 class UpdateConfig {
     internal string Repo,AssetName,AppName,Version,UpdatesDir,ExePath,ReleaseUrlVariable,SumsName="SHA256SUMS";
     internal string Stem { get { return Path.GetFileNameWithoutExtension(AssetName); } }
     internal string Extension { get { return Path.GetExtension(AssetName); } }
 }
 class Release { internal string Tag,Version,AssetUrl,SumsUrl,Notes; internal long Size=-1,PublishedAt=-1; }
-static class SemVer {
-    // Numeric X.Y.Z prefix of a tag ("v1.2.3-beta.1" -> 1,2,3); missing parts are zero; null when no digits lead.
-    internal static int[] Parse(string text) {
-        if(text==null)return null; text=text.Trim(); if(text.StartsWith("v")||text.StartsWith("V"))text=text.Substring(1);
-        Match m=Regex.Match(text,@"^(\d+)(?:\.(\d+))?(?:\.(\d+))?"); if(!m.Success)return null;
-        int[] parts=new int[3];
-        for(int i=0;i<3;i++) { if(!m.Groups[i+1].Success)continue; int value; if(!int.TryParse(m.Groups[i+1].Value,NumberStyles.None,CultureInfo.InvariantCulture,out value))return null; parts[i]=value; }
-        return parts;
-    }
-    internal static int Compare(int[] a,int[] b) { for(int i=0;i<3;i++)if(a[i]!=b[i])return a[i]<b[i]?-1:1; return 0; }
-    internal static bool IsNewer(string candidate,string current) { int[] a=Parse(candidate),b=Parse(current); return a!=null&&b!=null&&Compare(a,b)>0; }
-    internal static string Format(int[] v) { return v[0]+"."+v[1]+"."+v[2]; }
-}
-static class Checksums {
-    // SHA256SUMS line: "<64 hex>  <name>" (a "*" before the name marks binary mode in sha256sum output).
-    internal static string Find(string text,string asset) {
-        if(text==null)return null;
-        foreach(string raw in text.Split('\n')) {
-            string line=raw.Trim(); if(line.Length==0||line.StartsWith("#"))continue;
-            Match m=Regex.Match(line,@"^([0-9a-fA-F]{64})\s+\*?(.+)$");
-            if(m.Success&&string.Equals(m.Groups[2].Value.Trim(),asset,StringComparison.OrdinalIgnoreCase))return m.Groups[1].Value.ToLowerInvariant();
-        }
-        return null;
-    }
-    internal static string Sha256File(string path) { using(SHA256 sha=SHA256.Create())using(FileStream f=File.OpenRead(path))return Hex(sha.ComputeHash(f)); }
-    internal static string Hex(byte[] hash) { StringBuilder b=new StringBuilder(hash.Length*2); foreach(byte x in hash)b.Append(x.ToString("x2")); return b.ToString(); }
-}
-static class UpdateSchedule {
-    // Wait before the next periodic check: 5 minutes normally; after failed checks it doubles (10, 20, 40) up to 60 minutes.
-    internal static TimeSpan Wait(int failures) { int minutes=5; for(int i=0;i<failures&&minutes<60;i++)minutes*=2; return TimeSpan.FromMinutes(Math.Min(minutes,60)); }
-    // False while Windows reports no network connection (a periodic check is then skipped, not counted as a failure).
-    internal static bool HasConnection() { try { int flags; return InternetGetConnectedState(out flags,0); } catch { return true; } }
-    [DllImport("wininet.dll")] static extern bool InternetGetConnectedState(out int flags,int reserved);
-}
-enum NetFailure { Offline, Limit, NotFound, Other }
-class NetException : Exception { internal NetFailure Failure; internal NetException(NetFailure failure,string message) : base(message) { Failure=failure; } }
-interface IUpdateNet {
-    string RedirectLocation(string url);   // HEAD without following redirects; null when the answer is not a redirect
-    long ContentLength(string url);        // HEAD following redirects; -1 when unknown
-    string GetText(string url);
-    string GetText(string url,IDictionary<string,string> headers); // GET with extra request headers ("Accept" included)
-    string Download(string url,string destination,Action<long,long> progress); // streams to destination, returns SHA-256 hex
-}
-class WebNet : IUpdateNet {
-    readonly string userAgent;
-    static WebNet() { try { ServicePointManager.SecurityProtocol|=(SecurityProtocolType)3072|(SecurityProtocolType)12288; } catch(NotSupportedException) { ServicePointManager.SecurityProtocol|=(SecurityProtocolType)3072; } }
-    internal WebNet(string userAgent) { this.userAgent=userAgent; }
-    HttpWebRequest Create(string url,string method,bool follow) {
-        HttpWebRequest r=(HttpWebRequest)WebRequest.Create(url); r.Method=method; r.AllowAutoRedirect=follow; r.UserAgent=userAgent; r.Timeout=20000; r.ReadWriteTimeout=30000; return r;
-    }
-    static NetException Map(WebException e) {
-        HttpWebResponse response=e.Response as HttpWebResponse;
-        if(response!=null) { int code=(int)response.StatusCode; response.Close(); return new NetException(code==404?NetFailure.NotFound:code==403||code==429?NetFailure.Limit:NetFailure.Other,"HTTP "+code); }
-        return new NetException(e.Status==WebExceptionStatus.ProtocolError?NetFailure.Other:NetFailure.Offline,e.Status.ToString());
-    }
-    static T Retry<T>(Func<T> action) {
-        for(int attempt=1;;attempt++) {
-            try { return action(); }
-            catch(WebException e) { NetException n=Map(e); if(attempt>=2||n.Failure==NetFailure.NotFound||n.Failure==NetFailure.Limit)throw n; }
-            catch(IOException) { if(attempt>=2)throw new NetException(NetFailure.Offline,"connection lost"); }
-            Thread.Sleep(1500);
-        }
-    }
-    public string RedirectLocation(string url) {
-        return Retry(delegate {
-            using(HttpWebResponse r=(HttpWebResponse)Create(url,"HEAD",false).GetResponse()) {
-                int code=(int)r.StatusCode; string location=r.Headers["Location"];
-                if(code<300||code>=400||string.IsNullOrEmpty(location))return (string)null;
-                return new Uri(new Uri(url),location).AbsoluteUri;
-            }
-        });
-    }
-    public long ContentLength(string url) { return Retry(delegate { using(HttpWebResponse r=(HttpWebResponse)Create(url,"HEAD",true).GetResponse())return r.ContentLength; }); }
-    public string GetText(string url) { return GetText(url,null); }
-    public string GetText(string url,IDictionary<string,string> headers) {
-        return Retry(delegate {
-            HttpWebRequest q=Create(url,"GET",true);
-            // Accept is a restricted header of HttpWebRequest: it is set through the property, the others through Headers.
-            if(headers!=null)foreach(KeyValuePair<string,string> h in headers) { if(string.Equals(h.Key,"Accept",StringComparison.OrdinalIgnoreCase))q.Accept=h.Value; else q.Headers[h.Key]=h.Value; }
-            using(HttpWebResponse r=(HttpWebResponse)q.GetResponse())using(StreamReader s=new StreamReader(r.GetResponseStream(),Encoding.UTF8))return s.ReadToEnd();
-        });
-    }
-    public string Download(string url,string destination,Action<long,long> progress) {
-        try {
-            using(HttpWebResponse r=(HttpWebResponse)Create(url,"GET",true).GetResponse())
-            using(Stream input=r.GetResponseStream())
-            using(FileStream output=new FileStream(destination,FileMode.Create,FileAccess.Write,FileShare.None))
-            using(SHA256 sha=SHA256.Create()) {
-                long total=r.ContentLength,done=0; byte[] buffer=new byte[65536]; int read;
-                while((read=ReadSome(input,buffer))>0) { output.Write(buffer,0,read); sha.TransformBlock(buffer,0,read,null,0); done+=read; if(progress!=null)progress(done,total); }
-                sha.TransformFinalBlock(buffer,0,0); return Checksums.Hex(sha.Hash);
-            }
-        } catch(WebException e) { throw Map(e); }
-    }
-    // Network read errors become NetException; disk write errors stay IOException for the caller.
-    static int ReadSome(Stream input,byte[] buffer) { try { return input.Read(buffer,0,buffer.Length); } catch(IOException) { throw new NetException(NetFailure.Offline,"connection lost"); } catch(WebException e) { throw Map(e); } }
-}
 class UpdateError : Exception { internal UpdateError(string message) : base(message) { } }
 class Updater {
     internal static class Messages {
@@ -134,24 +37,28 @@ class Updater {
     }
     internal Action<UpdateStatus> OnStatus; internal Action<string> OnToast; internal Func<bool> AutoDownload; // read once per check that finds a newer release
     internal Func<string,string,bool> Spawn=DefaultSpawn; // (exe, arguments) -> started
-    readonly UpdateConfig config; readonly IUpdateNet net; readonly object gate=new object();
+    readonly UpdateConfig config; readonly IUpdateNet net; readonly object gate=new object(); readonly List<Action<UpdateStatus>> watchers=new List<Action<UpdateStatus>>();
     UpdateStatus status=new UpdateStatus(); Release release; string expectedSha; int busy;
     internal Updater(UpdateConfig config,IUpdateNet net) {
         this.config=config; this.net=net??new WebNet(config.Stem+"/"+config.Version); status.Current=config.Version;
     }
+    internal UpdateConfig Config { get { return config; } }
     internal UpdateStatus Status { get { lock(gate)return status.Copy(); } }
     internal string ReleasePage { get { return "https://github.com/"+config.Repo+"/releases/latest"; } }
     internal string FileFor(string version) { return Path.Combine(config.UpdatesDir,config.Stem+"-"+version+config.Extension); }
     string MarkerPath { get { return Path.Combine(config.UpdatesDir,"applied.json"); } }
+    // Library-side listeners (UpdateScheduler); called before OnStatus, on the same worker thread.
+    internal void Watch(Action<UpdateStatus> watcher) { lock(gate)watchers.Add(watcher); }
 
     void Set(UpdateStage stage,string message,double progress) {
-        UpdateStatus copy;
+        UpdateStatus copy; Action<UpdateStatus>[] listeners;
         lock(gate) {
             status.Stage=stage; status.Message=message; status.Progress=progress;
             status.Latest=release!=null?release.Version:null; status.Size=release!=null?release.Size:-1;
             status.Notes=release!=null?release.Notes:null; status.PublishedAt=release!=null?release.PublishedAt:-1;
-            status.CanApply=stage==UpdateStage.Ready&&!string.IsNullOrEmpty(config.ExePath); copy=status.Copy();
+            status.CanApply=stage==UpdateStage.Ready&&!string.IsNullOrEmpty(config.ExePath); copy=status.Copy(); listeners=watchers.ToArray();
         }
+        foreach(Action<UpdateStatus> watcher in listeners) { try { watcher(copy.Copy()); } catch { } }
         Action<UpdateStatus> handler=OnStatus; if(handler!=null) { try { handler(copy); } catch { } }
     }
     bool Enter() { return Interlocked.CompareExchange(ref busy,1,0)==0; }
@@ -211,7 +118,7 @@ class Updater {
         string baseUrl="https://github.com/"+config.Repo+"/releases/download/"+Uri.EscapeDataString(tag)+"/";
         Release r=new Release { Tag=tag,AssetUrl=baseUrl+config.AssetName,SumsUrl=baseUrl+config.SumsName }; return r;
     }
-    // Test source (MIC_CONTROL_RELEASE_URL): a JSON document in the GitHub "latest release" format.
+    // Test source (the ReleaseUrlVariable): a JSON document in the GitHub "latest release" format.
     Release FromDocument(string url) {
         string text;
         try { text=net.GetText(url); }
@@ -222,12 +129,12 @@ class Updater {
     // browser_download_url. Null when the text is not such a document.
     Release Parse(string text) {
         try {
-            Dictionary<string,object> doc=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(text);
+            Dictionary<string,object> doc=Json.Parse(text) as Dictionary<string,object>;
             object tag; if(doc==null||!doc.TryGetValue("tag_name",out tag)||!(tag is string))return null;
             Release r=new Release { Tag=(string)tag }; object value;
             if(doc.TryGetValue("body",out value)) { string notes=value as string; if(!string.IsNullOrWhiteSpace(notes))r.Notes=notes; }
             if(doc.TryGetValue("published_at",out value))r.PublishedAt=EpochSeconds(value as string);
-            if(doc.TryGetValue("assets",out value)&&value is IEnumerable) {
+            if(doc.TryGetValue("assets",out value)&&value is IEnumerable&&!(value is string)) {
                 foreach(object item in (IEnumerable)value) {
                     Dictionary<string,object> a=item as Dictionary<string,object>; if(a==null)continue;
                     object name,link,size; if(!a.TryGetValue("name",out name)||!a.TryGetValue("browser_download_url",out link))continue;
@@ -342,55 +249,5 @@ class Updater {
         }
     }
     internal static bool TryDelete(string path) { try { if(File.Exists(path))File.Delete(path); return true; } catch { return false; } }
-}
-// Apply mode: "<downloaded exe> --apply-update <pid> <target> [--no-launch]". Runs before the single-instance mutex
-// and before any window; waits for the old app to exit, swaps the target, starts it. Log: apply.log beside itself.
-static class UpdateApply {
-    internal const string Flag="--apply-update",NoLaunchFlag="--no-launch",RelaunchArguments="--startup"; // the new instance starts in the tray
-    internal static string Quote(string path) { return "\""+path+"\""; }
-    internal static int Run(string[] args) {
-        string self=AppPaths.ExePath,log=Path.Combine(Path.GetDirectoryName(self),"apply.log");
-        Action<string> write=delegate(string line) { try { File.AppendAllText(log,DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)+"  "+line+Environment.NewLine); } catch { } };
-        int pid; if(args.Length<3||!int.TryParse(args[1],out pid)) { write("bad arguments"); return 1; }
-        string target=Path.GetFullPath(args[2]); bool launch=Array.IndexOf(args,NoLaunchFlag)<0;
-        write("apply "+self+" -> "+target+", waiting for pid "+pid);
-        if(!WaitForExit(pid,TimeSpan.FromSeconds(120))) { write("the app did not exit within 120 s"); return 1; }
-        if(!Swap(self,target,write))return 1;
-        if(launch) {
-            try { using(Process p=Process.Start(new ProcessStartInfo(target,RelaunchArguments) { UseShellExecute=false,WorkingDirectory=Path.GetDirectoryName(target) })) { } write("started "+target); }
-            catch(Exception e) { write("could not start the new version: "+e.Message); return 1; }
-        }
-        return 0;
-    }
-    internal static bool WaitForExit(int pid,TimeSpan timeout) {
-        Process p; try { p=Process.GetProcessById(pid); } catch(ArgumentException) { return true; }
-        using(p) { try { return p.WaitForExit((int)timeout.TotalMilliseconds); } catch(InvalidOperationException) { return true; } catch(Win32Exception) { return false; } }
-    }
-    // Rename the target (allowed for a running or just-closed image) to .old, copy the source over it, compare sizes.
-    // Any failure after the rename puts .old back. Never leaves the target missing when it existed before.
-    internal static bool Swap(string source,string target,Action<string> log) {
-        string old=target+".old";
-        if(File.Exists(old)&&!Updater.TryDelete(old)) {
-            string aside=old+"."+DateTime.Now.Ticks; try { File.Move(old,aside); log("stale .old moved to "+aside); } catch(Exception e) { log("stale .old is locked: "+e.Message); return false; }
-        }
-        if(!File.Exists(source)) { log("update file missing: "+source); return false; }
-        bool renamed=false;
-        if(File.Exists(target)) {
-            for(int attempt=1;attempt<=40&&!renamed;attempt++) {
-                try { File.Move(target,old); renamed=true; }
-                catch(Exception e) { if(attempt==40) { log("could not rename the target: "+e.Message); return false; } Thread.Sleep(500); }
-            }
-        }
-        try {
-            File.Copy(source,target,false);
-            if(new FileInfo(source).Length!=new FileInfo(target).Length)throw new IOException("size mismatch after copy");
-            log("swapped"+(renamed?", previous version kept as "+old:"")); return true;
-        } catch(Exception e) {
-            log("copy failed: "+e.Message);
-            Updater.TryDelete(target);
-            if(renamed) { try { File.Move(old,target); log("restored the previous version"); } catch(Exception r) { log("restore failed: "+r.Message); } }
-            return false;
-        }
-    }
 }
 }

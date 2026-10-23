@@ -15,9 +15,9 @@ namespace MicControl {
 // hover only). Theme colours come from the ThemeLook brushes registered as T.* resources.
 static class Theme {
     internal static Color Pink=Color.FromRgb(255,112,190),Purple=Color.FromRgb(161,112,255);
-    internal static Brush Text=Brush("#F5F3ECFA"),Ink2=Brush("#BDFFFFFF"),Muted=Brush("#8AFFFFFF"),Fill=Brush("#16FFFFFF"),FillHover=Brush("#21FFFFFF"),Hairline=Brush("#29FFFFFF"),Rose=Brush("#FF8FA6");
+    internal static Brush Text=Brush("#F5F3ECFA"),Ink2=Brush("#BDFFFFFF"),Muted=Brush("#8AFFFFFF"),Fill=Brush("#16FFFFFF"),FillHover=Brush("#21FFFFFF"),Hairline=Brush("#29FFFFFF"),Rose=Brush("#FF8FA6"),Mint=Brush("#3FE2C1");
     internal static SolidColorBrush Brush(string hex) { SolidColorBrush b=new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); b.Freeze(); return b; }
-    internal static TextBlock Label(string text,double size,Brush brush) { return new TextBlock { Text=text,FontSize=size,Foreground=brush,FontFamily=new FontFamily("Bahnschrift"),VerticalAlignment=VerticalAlignment.Center }; }
+    internal static TextBlock Label(string text,TypeRole role,Brush brush) { TextBlock t=new TextBlock { Text=role.Text(text),Foreground=brush,VerticalAlignment=VerticalAlignment.Center }; role.Apply(t); return t; }
     internal static DoubleAnimation Motion(double to,double seconds) { return new DoubleAnimation(to,TimeSpan.FromSeconds(seconds)) { EasingFunction=new CubicEase { EasingMode=EasingMode.EaseOut } }; }
     internal static void Fade(UIElement el,double to,double seconds) { el.BeginAnimation(UIElement.OpacityProperty,Motion(to,seconds)); }
     internal static LinearGradientBrush Gradient(string a,string b) { return new LinearGradientBrush((Color)ColorConverter.ConvertFromString(a),(Color)ColorConverter.ConvertFromString(b),35); }
@@ -45,7 +45,7 @@ static class Theme {
     }
     static string ButtonStyle(string key,string foreground,string background,string border,string template,string extra) {
         return "<Style "+key+@" TargetType='Button'>
-  <Setter Property='Foreground' Value='"+foreground+@"'/><Setter Property='FontFamily' Value='Bahnschrift'/><Setter Property='FontSize' Value='14'/><Setter Property='Cursor' Value='Hand'/><Setter Property='Background' Value='"+background+@"'/><Setter Property='BorderBrush' Value='"+border+@"'/><Setter Property='Padding' Value='16,8'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
+  <Setter Property='Foreground' Value='"+foreground+@"'/><Setter Property='FontFamily' Value='{DynamicResource Type.Text}'/><Setter Property='FontSize' Value='{DynamicResource Type.Label.Size}'/><Setter Property='FontWeight' Value='{DynamicResource Type.Label.Weight}'/><Setter Property='Cursor' Value='Hand'/><Setter Property='Background' Value='"+background+@"'/><Setter Property='BorderBrush' Value='"+border+@"'/><Setter Property='Padding' Value='14,6'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
   <Setter Property='Template'><Setter.Value>"+template+@"</Setter.Value></Setter>"+extra+@"
  </Style>
 ";
@@ -60,14 +60,48 @@ static class Theme {
 +ButtonStyle("x:Key='Tinted'","White","#21FFFFFF","#47FFFFFF",Plate("#42FFFFFF","#14FFFFFF","#14000000","1",shadowedLabel),"")
 +ButtonStyle("x:Key='Ghost'","#8AFFFFFF","#16FFFFFF","#29FFFFFF",Plate("#0FFFFFFF","#09FFFFFF","#14FFFFFF","0",label),"<Style.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter Property='Foreground' Value='#F5F3ECFA'/></Trigger></Style.Triggers>")
 +@" <Style TargetType='ToggleButton'>
-  <Setter Property='Cursor' Value='Hand'/><Setter Property='Width' Value='48'/><Setter Property='Height' Value='28'/><Setter Property='Background' Value='#21FFFFFF'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
+  <Setter Property='Cursor' Value='Hand'/><Setter Property='Width' Value='40'/><Setter Property='Height' Value='24'/><Setter Property='Background' Value='#21FFFFFF'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
   <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ToggleButton'>
-   <Grid><Border CornerRadius='14' Background='#16FFFFFF' BorderBrush='#29FFFFFF' BorderThickness='1'/><Border CornerRadius='14' Margin='1' BorderThickness='0,1,0,0' BorderBrush='#1AFFFFFF'/><Border x:Name='lit' CornerRadius='14' Opacity='0' Background='{TemplateBinding Background}'/>
-   <Ellipse x:Name='knob' Fill='#F5FFFFFF' Width='18' Height='18' HorizontalAlignment='Left' Margin='5,0,0,0'><Ellipse.Effect><DropShadowEffect Color='Black' BlurRadius='4' ShadowDepth='1' Direction='270' Opacity='0.3'/></Ellipse.Effect><Ellipse.RenderTransform><TranslateTransform x:Name='slide'/></Ellipse.RenderTransform></Ellipse>
+   <Grid><Border CornerRadius='12' Background='#16FFFFFF' BorderBrush='#29FFFFFF' BorderThickness='1'/><Border CornerRadius='12' Margin='1' BorderThickness='0,1,0,0' BorderBrush='#1AFFFFFF'/><Border x:Name='lit' CornerRadius='12' Opacity='0' Background='{TemplateBinding Background}'/>
+   <Ellipse x:Name='knob' Fill='#F5FFFFFF' Width='20' Height='20' HorizontalAlignment='Left' Margin='2,0,0,0'><Ellipse.Effect><DropShadowEffect Color='Black' BlurRadius='4' ShadowDepth='1' Direction='270' Opacity='0.3'/></Ellipse.Effect><Ellipse.RenderTransform><TranslateTransform x:Name='slide'/></Ellipse.RenderTransform></Ellipse>
    </Grid><ControlTemplate.Triggers>
-    <Trigger Property='IsChecked' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='20' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.18'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='0' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.18'/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
+    <Trigger Property='IsChecked' Value='True'><Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='16' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.18'/></Storyboard></BeginStoryboard></Trigger.EnterActions><Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='slide' Storyboard.TargetProperty='X' To='0' Duration='0:0:0.25'><DoubleAnimation.EasingFunction><CubicEase EasingMode='EaseOut'/></DoubleAnimation.EasingFunction></DoubleAnimation><DoubleAnimation Storyboard.TargetName='lit' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.18'/></Storyboard></BeginStoryboard></Trigger.ExitActions></Trigger>
    </ControlTemplate.Triggers>
   </ControlTemplate></Setter.Value></Setter>
+ </Style>
+ <Style x:Key='TitleButton' TargetType='Button'>
+  <Setter Property='Width' Value='30'/><Setter Property='Height' Value='28'/><Setter Property='Foreground' Value='#BDFFFFFF'/><Setter Property='Cursor' Value='Hand'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
+  <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
+   <Border x:Name='b' CornerRadius='14' Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
+   <ControlTemplate.Triggers>
+    <Trigger Property='Tag' Value='on'><Setter TargetName='b' Property='Background' Value='#21FFFFFF'/><Setter Property='Foreground' Value='#F5FFFFFF'/></Trigger>
+    <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#21FFFFFF'/><Setter Property='Foreground' Value='#F5FFFFFF'/></Trigger>
+    <Trigger Property='IsPressed' Value='True'><Setter TargetName='b' Property='Background' Value='#33FFFFFF'/></Trigger>
+   </ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
+ </Style>
+ <Style x:Key='CloseButton' TargetType='Button' BasedOn='{StaticResource TitleButton}'>
+  <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
+   <Border x:Name='b' CornerRadius='14' Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
+   <ControlTemplate.Triggers>
+    <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#E5484D'/><Setter Property='Foreground' Value='White'/></Trigger>
+    <Trigger Property='IsPressed' Value='True'><Setter TargetName='b' Property='Background' Value='#C93C41'/><Setter Property='Foreground' Value='White'/></Trigger>
+   </ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
+ </Style>
+ <Style x:Key='Pill' TargetType='Button'>
+  <Setter Property='Height' Value='24'/><Setter Property='Padding' Value='9,0'/><Setter Property='Foreground' Value='#8AFFFFFF'/><Setter Property='Cursor' Value='Hand'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
+  <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
+   <Grid><Border x:Name='b' CornerRadius='12' Background='#09FFFFFF' BorderBrush='#1AFFFFFF' BorderThickness='1'><Border.Effect><DropShadowEffect Color='Black' BlurRadius='8' ShadowDepth='2' Direction='270' Opacity='0.25'/></Border.Effect></Border>
+    <ContentPresenter Margin='{TemplateBinding Padding}' VerticalAlignment='Center'/></Grid>
+   <ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#17FFFFFF'/></Trigger></ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
+  <Style.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter Property='Foreground' Value='#F5FFFFFF'/></Trigger></Style.Triggers>
+ </Style>
+ <Style x:Key='Segment' TargetType='Button'>
+  <Setter Property='Foreground' Value='#8AFFFFFF'/><Setter Property='Cursor' Value='Hand'/><Setter Property='Focusable' Value='False'/>
+  <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'><Border Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border></ControlTemplate></Setter.Value></Setter>
+  <Style.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter Property='Foreground' Value='#BDFFFFFF'/></Trigger></Style.Triggers>
  </Style>
  <Style TargetType='ListBoxItem'><Setter Property='Foreground' Value='#BDFFFFFF'/><Setter Property='Padding' Value='12,8'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ListBoxItem'><Border x:Name='b' Background='Transparent' CornerRadius='10' Padding='{TemplateBinding Padding}' BorderThickness='1' BorderBrush='Transparent'><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property='IsSelected' Value='True'><Setter TargetName='b' Property='Background' Value='{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}'/><Setter Property='Foreground' Value='#F5F3ECFA'/></Trigger><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='#29FFFFFF'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
  <Style TargetType='ScrollBar'><Setter Property='Width' Value='7'/><Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ScrollBar'><Track x:Name='PART_Track' IsDirectionReversed='True'><Track.DecreaseRepeatButton><RepeatButton Command='ScrollBar.PageUpCommand' Opacity='0' Focusable='False'/></Track.DecreaseRepeatButton><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType='Thumb'><Border x:Name='grip' Background='#2EFFFFFF' CornerRadius='3' Margin='1,0'/><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='grip' Property='Background' Value='#52FFFFFF'/></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command='ScrollBar.PageDownCommand' Opacity='0' Focusable='False'/></Track.IncreaseRepeatButton></Track></ControlTemplate></Setter.Value></Setter></Style>
@@ -81,7 +115,7 @@ static class Theme {
 </ResourceDictionary>";
         // Pills: a Border scales an oversized CornerRadius into elliptical corners, so every plate binds its radius to half of the button's height (inset for the layers 1 px inside, outset for the focus ring).
         xaml=xaml.Replace("CornerRadius='999' Margin='-4'",Radius(-4)+" Margin='-4'").Replace("CornerRadius='999' Margin='1'",Radius(1)+" Margin='1'").Replace("CornerRadius='999'",Radius(0));
-        ResourceDictionary dictionary=(ResourceDictionary)XamlReader.Parse(xaml); look.Register(dictionary); return dictionary;
+        ResourceDictionary dictionary=(ResourceDictionary)XamlReader.Parse(xaml); dictionary.MergedDictionaries.Add(TypeRoles.Dictionary()); look.Register(dictionary); return dictionary;
     }
     static string Radius(int inset) { return "CornerRadius='{Binding ActualHeight, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource Half}, ConverterParameter="+inset+"}'"; }
 }

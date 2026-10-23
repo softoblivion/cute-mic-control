@@ -45,7 +45,7 @@ class ThemeLook {
     internal readonly SolidColorBrush Accent=Solid(),AccentInk=Solid(),AccentLight=Solid(),AccentSoft=Solid(),Line=Solid(),BgTop=Solid(),BgMid=Solid(),Sheet=Solid(),Scrim=Solid();
     internal readonly LinearGradientBrush AccentGrad=Linear(new Point(0,0),new Point(1,1),0,.48,1),Frame=Linear(new Point(0,0),new Point(0,1),0,.5,1),FrameEdge=Linear(new Point(0,0),new Point(1,1),0,1),Orbit=Linear(new Point(0,0),new Point(1,1),0,1);
     internal readonly RadialGradientBrush Nebula=Radial(),Field=Radial();
-    internal readonly DropShadowEffect AccentGlow=new DropShadowEffect { BlurRadius=22,ShadowDepth=6,Direction=270,Opacity=.55 },ThumbGlow=new DropShadowEffect { BlurRadius=10,ShadowDepth=0,Opacity=.65 },FrameShadow=new DropShadowEffect { BlurRadius=22,ShadowDepth=0,Opacity=.45 };
+    internal readonly DropShadowEffect AccentGlow=new DropShadowEffect { BlurRadius=22,ShadowDepth=6,Direction=270,Opacity=.55 },ThumbGlow=new DropShadowEffect { BlurRadius=10,ShadowDepth=0,Opacity=.65 },FrameShadow=new DropShadowEffect { BlurRadius=22,ShadowDepth=0,Opacity=.45 },GlyphGlow=new DropShadowEffect { BlurRadius=8,ShadowDepth=2,Direction=270,Opacity=1 };
     static SolidColorBrush Solid() { return new SolidColorBrush(Colors.Transparent); }
     static LinearGradientBrush Linear(Point a,Point b,params double[] offsets) { LinearGradientBrush g=new LinearGradientBrush { StartPoint=a,EndPoint=b }; foreach(double o in offsets)g.GradientStops.Add(new GradientStop(Colors.Transparent,o)); return g; }
     static RadialGradientBrush Radial() { RadialGradientBrush g=new RadialGradientBrush(); g.GradientStops.Add(new GradientStop(Colors.Transparent,0)); g.GradientStops.Add(new GradientStop(Colors.Transparent,1)); return g; }
@@ -58,7 +58,7 @@ class ThemeLook {
         Stops(AccentGrad,s,t.AccentLight,t.Accent,t.AccentDeep); Stops(Frame,s,t.BgTop,t.BgMid,t.BgBottom);
         Stops(FrameEdge,s,ThemeSpec.Alpha(ThemeSpec.Mix(t.Hue,Colors.White,.3),.6),ThemeSpec.Alpha(t.Hue,.16)); Stops(Orbit,s,ThemeSpec.Alpha(t.AccentInk,.6),ThemeSpec.Alpha(t.AccentInk,0));
         Stops(Nebula,s,ThemeSpec.Alpha(t.Hue,.41),ThemeSpec.Alpha(t.Hue,0)); Stops(Field,s,ThemeSpec.Alpha(t.Accent,.28),ThemeSpec.Alpha(t.Accent,0));
-        Glow(AccentGlow,t.Accent,s); Glow(ThumbGlow,t.Accent,s); Glow(FrameShadow,t.Hue,s);
+        Glow(AccentGlow,t.Accent,s); Glow(ThumbGlow,t.Accent,s); Glow(FrameShadow,t.Hue,s); Glow(GlyphGlow,t.GlyphGlow,s);
     }
     static ColorAnimation Ease(Color to,double seconds) { return new ColorAnimation(to,TimeSpan.FromSeconds(seconds)) { EasingFunction=new CubicEase { EasingMode=EasingMode.EaseOut } }; }
     static void Tint(SolidColorBrush b,Color to,double s) { if(s<=0) { b.BeginAnimation(SolidColorBrush.ColorProperty,null); b.Color=to; } else b.BeginAnimation(SolidColorBrush.ColorProperty,Ease(to,s)); }

@@ -12,9 +12,10 @@
 ![PowerShell](https://img.shields.io/badge/PowerShell-5391FE?logo=powershell&logoColor=white)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-**A tiny Windows microphone mute toggle with a global hotkey: one shortcut mutes and unmutes the default microphone from anywhere. A heart in the corner of the screen shows the state: whole and glowing when the mic is on, broken when it is muted. Lives in the tray, one portable exe of about 100 KB, no installer, updates itself.**
+**A tiny Windows microphone mute toggle with a global hotkey: one shortcut mutes and unmutes the default microphone from anywhere. A heart in the corner of the screen shows the state: whole and glowing when the mic is on, broken when it is muted. Lives in the tray, one portable exe of about 330 KB, no installer, updates itself.**
 
-<img src="docs/assets/settings.png" alt="Mic Control settings window" width="31%">
+<img src="docs/assets/settings.png" alt="Mic Control main window" width="31%">
+<img src="docs/assets/settings-sheet.png" alt="Settings sheet with Appearance and Scale" width="31%">
 <img src="docs/assets/hotkey-editor.png" alt="Hotkey editor" width="31%">
 
 <img src="docs/assets/palettes.png" alt="Five colour palettes, microphone on and off" width="64%">
@@ -31,7 +32,7 @@
   the same state, without looking for each app's own mute button.
 - **You always know.** The heart overlay sits above ordinary windows and lets clicks pass through; the tray icon
   shows the same state.
-- **Tiny and portable.** One exe of about 100 KB using the .NET Framework that ships with Windows. No installer, no
+- **Tiny and portable.** One exe of about 330 KB using the .NET Framework that ships with Windows. No installer, no
   admin rights, no background services. Settings stay in a folder next to the exe.
 - **Free and open source.** GPL-3.0; build it yourself with the compiler that comes with Windows.
 - **Nothing else.** No audio is recorded and no keystrokes are logged; the only network traffic is the update check
@@ -57,6 +58,7 @@
 | **Heart indicator** | Whole heart with a double pulse = on, broken heart = muted, dim = no input device. Above ordinary windows, click-through, 50–200 % size. |
 | **Five palettes** | Nebula, Aurora, Glacier, Ember, Lunar; each a pair of on / off colours for the overlay, the preview and the tray icon. |
 | **Four themes** | Dusk, Nova, Frost, Bloom: the background colour and accent of the settings window, shared with the other softoblivion desktop apps. |
+| **Scale** | 100–200 % for the whole window and its text on top of the Windows display scaling; sharp at every step. |
 | **Tray app** | Toggle, Settings, update items and Quit in the tray menu; double-click opens Settings. Optional launch at login. |
 | **Follows Windows** | Reads the mute state every 500 ms, so a mute from the Windows sound settings or a headset button shows up too; follows default-device changes. |
 | **Self-update** | Checks GitHub Releases on start, downloads a new version in the background, verifies size and SHA-256, installs on one click. |
