@@ -1,7 +1,9 @@
-# Release notes
+# Releases
 
-One file per version, `vX.Y.Z.md`, used as the GitHub Release body as it is. Layout and rules: sections Added,
-Changed, Fixed, Removed in that order, each change in exactly one section, written for users.
+One file per release, `vX.Y.Z.md`: a `## ⪩ <App> vX.Y.Z ⪨` header, one or two sentences on what the release
+means for the user, `---`, then the sections `### ⤷ Added / Changed / Fixed / Removed ˎˊ˗` in that order (a
+section without entries is left out). Every change in exactly one section, written for users. Each file is the
+text of its GitHub Release as it is.
 
 | Version | Date | Summary |
 |---|---|---|

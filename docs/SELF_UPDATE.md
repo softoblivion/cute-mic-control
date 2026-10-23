@@ -1,6 +1,6 @@
 # Self-update
 
-Owning document of `src\Updater.cs`. The design is the one the workspace's Python apps use (check on launch,
+Owning document of `src\Updater.cs`. The design is the one the other softoblivion desktop apps use (check on launch,
 verified download, the downloaded exe swaps itself in), implemented in C# 5 inside this project. Tests:
 `tests\UpdateTests.cs`.
 
@@ -132,7 +132,7 @@ the fix's release notes must say so. Version 1.0.0 has no updater: its copies ne
 ## 8. Update window
 
 `src\UpdateWindow.cs` (`UpdateWindow`, `MarkdownView`), wired in `SettingsWindow`: the update notice shared by the
-workspace's desktop apps (the "update sheet": a modal notice with the release notes, Install and Later) as a WPF
+softoblivion desktop apps (the "update sheet": a modal notice with the release notes, Install and Later) as a WPF
 window. It is
 a top-level window of its own, so it works while the settings window is hidden in the tray; every status reaches it
 through the dispatcher-marshalled `OnStatus` of the settings window.

@@ -19,7 +19,7 @@ no dependencies beyond what Windows 10 / 11 ships. It updates itself from GitHub
 
 ## 3. Repository layout
 
-The default layout of the workspace, with these deviations: no `.sln` / `.csproj` (direct `csc` build), all
+A plain layout without project files: no `.sln` / `.csproj` (direct `csc` build), all
 application sources in one flat `src\` folder (one assembly, namespace `MicControl`), and the self-test that
 needs the live window is compiled into the app (`src\Tests.cs`) instead of living in `tests\`.
 
@@ -40,7 +40,8 @@ cute-mic-control\
     Version.cs         the version (single source) and product constants
   tests\UpdateTests.cs console test runner for Updater.cs / Paths.cs, built and run by build.ps1
   build\build.ps1      tests, build, SHA256SUMS
-  docs\                ARCHITECTURE, SELF_UPDATE, BUILD, USER_GUIDE, releases\, assets\ (README images)
+  docs\                ARCHITECTURE, SELF_UPDATE, BUILD, USER_GUIDE, THIRD_PARTY, releases\, assets\ (README images)
+  .github\             issue templates
   release\             build output (ignored)
   obj\                 test runner and generated files (ignored)
 ```
@@ -71,7 +72,7 @@ that folder for tests and manual runs). Moving the exe together with this folder
 | `updates\` | `MicControl-<version>.exe` (verified download), `.part` while downloading, `applied.json` marker, `apply.log` |
 | `self-test\` | `self-test.txt` and PNG previews of `--self-test` |
 
-Decision (2026-10-21, 1.1.0): 1.0.0 kept `settings.xml` in `%LOCALAPPDATA%\Mic Control\` (and imported
+Settings import (1.1.0): 1.0.0 kept `settings.xml` in `%LOCALAPPDATA%\Mic Control\` (and imported
 `%LOCALAPPDATA%\MicMute\` before that). From 1.1.0 the portable folder is the only store. When it has no
 `settings.xml` yet, the first start reads the profile file once and saves it into the portable folder; the profile
 file is left in place and never written again. The import is skipped when `MIC_CONTROL_HOME` is set.
@@ -98,9 +99,8 @@ Details, messages and failure handling: `docs\SELF_UPDATE.md`.
 
 ## 8. Window themes (2.0.0)
 
-The settings window follows the look shared by the workspace's desktop apps (the web kit `_shared\liquid_ui`,
-sections Themes, Buttons and Motion of its reference): Mic Control re-expresses the same values in WPF and vendors
-nothing. `src\Themes.cs` holds the four themes (`dusk`, `nova`, `frost`, `bloom`; each a hue and an accent) and the
+The settings window follows the look shared by the softoblivion desktop apps (their web UI kit: themes, buttons
+and motion): Mic Control re-expresses the same values in WPF and vendors nothing. `src\Themes.cs` holds the four themes (`dusk`, `nova`, `frost`, `bloom`; each a hue and an accent) and the
 kit's derivation (`mix(a, b, k) = a + (b - a) * k` per channel: accent light / deep / ink, background top / mid /
 bottom, line colour, glows, focus ring, tints), so the colours match the other apps to the rounding of a channel.
 
@@ -123,5 +123,4 @@ through its chip and checks the preference round trip.
 Every window of the app has a fixed size: the settings window (490 x up to 880), the indicator overlay (88 px times
 the indicator scale, click-through) and the update window (460 wide, its height follows the content up to 70 % of
 the work area). All three use `WindowStyle.None` with `ResizeMode.NoResize`: no sizing border, no maximize, no
-size hook, so the page covers the whole client area. This is the workspace rule for application windows
-(2026-10-21); a resizable window needs a task that names resizing as a requirement.
+size hook, so the page covers the whole client area.
