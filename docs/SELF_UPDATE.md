@@ -5,10 +5,12 @@ How Mic Control updates itself. The engine is the C# update library `selfupdate-
 the copy is synced from the library, never edited in this repository). The app supplies its values in
 `src\UpdateSetup.cs` (`AppUpdate.Config()`: repository, asset `MicControl.exe`, app name, version, `updates\` in the
 data folder, the exe path, `MIC_CONTROL_RELEASE_URL`; relaunch arguments `--startup`), routes the apply mode first
-thing in `Program.Main` and shows the status in the title bar, the Settings sheet, the tray and the update window
-(section 8). The design is the one the other softoblivion desktop apps use (check on launch, verified download, the
-downloaded exe swaps itself in). Tests: `tests\UpdateTests.cs` (the app's configuration on the update path; the
-library carries its own full suite).
+thing in `Program.Main`. What the user sees of the update is the library's `UpdatePresenter` (version 1.1.0 and later:
+UI-free models of the pill, the update sheet, the updates panel and the toasts, with the notice rules), wired in
+`src\UpdateHost.cs` and drawn in the title bar, the Settings sheet, the tray and the update window (sections 8 and 9).
+The design is the one the other softoblivion desktop apps use (check on launch, verified download, the downloaded exe
+swaps itself in). Tests: `tests\UpdateTests.cs` (the app's configuration on the update path, the presenter over the app's
+release, the balloon texts; the library carries its own full suite).
 
 ## 1. Release layout
 
@@ -26,13 +28,15 @@ checksum file").
 ## 2. States and messages
 
 `Idle` -> `Checking` -> `UpToDate` | `Available` | `Error`; `Available` -> `Downloading` -> `Ready` | `Error`;
-`Ready` -> apply. One operation at a time; a request while one runs is ignored. Every change is passed to
-`OnStatus` as a copy (worker thread; the window marshals it to its dispatcher).
+`Ready` -> apply. One operation at a time; a request while one runs is ignored, except a download requested during a
+check, which starts when the check ends at `Available`. Every change is passed to `OnStatus` as a copy (worker thread;
+the presenter marshals it to the UI thread).
 
 Besides the stage and message, a status carries the release it is about (copied in `Set()` from the found release,
 empty while `Checking` and after an up-to-date or failed check): `Latest` (X.Y.Z), `Size` (bytes, -1 unknown),
-`Notes` (the Markdown body of the release, null when the source has none or it is blank) and `PublishedAt` (epoch
-seconds, -1 unknown). The update window (section 8) shows them.
+`Notes` (the Markdown body of the release, null when the source has none or it is blank), `PublishedAt` (epoch
+seconds, -1 unknown) and `CheckedAt` (epoch seconds of the last check that reached the source). The presenter turns
+them into the models the update window and the settings rows show (section 9).
 
 | Stage | Message |
 |---|---|
@@ -41,7 +45,7 @@ seconds, -1 unknown). The update window (section 8) shows them.
 | UpToDate | Mic Control is up to date |
 | Available | Version X.Y.Z is available |
 | Downloading | Downloading Mic Control X.Y.Z… 42% |
-| Ready | Version X.Y.Z is ready to install |
+| Ready | Version X.Y.Z is ready to install (without an exe path: " (applies to the packaged MicControl.exe only)" is appended) |
 | Error | No internet connection / GitHub limited the request, try again later / No release has been published yet / Could not read the release version / The release has no MicControl.exe / The release has no checksum file / The downloaded file is damaged (checksum mismatch) / Could not save the update file / The update is not ready to install / The downloaded update file is missing / Could not start the update helper / The update check failed |
 
 ## 3. Check
@@ -50,8 +54,8 @@ seconds, -1 unknown). The update window (section 8) shows them.
   app runs (the library's `UpdateScheduler`, a thread-pool timer independent of any window, so it keeps firing while
   the window is hidden in the tray), and on **Check for updates** (tray menu, the version pill or the Settings
   sheet). `UpdateSchedule.Wait(failures)` gives the wait:
-  5 minutes, doubled after every failed check (10, 20, 40) up to 60 minutes; the first check that ends in another
-  stage returns it to 5 minutes. A periodic tick is skipped, without counting as a failure, while Windows reports
+  5 minutes plus or minus a random offset of up to 30 s, doubled after every failed check (10, 20, 40) up to 60
+  minutes; the first check that ends in another stage returns it to 5 minutes. A periodic tick is skipped, without counting as a failure, while Windows reports
   no network connection (`InternetGetConnectedState`) and while an update is already downloaded and waits for the
   restart. With **Download updates automatically** on (the default) a found version is downloaded at once; it is
   installed only on **Restart to update**.
@@ -85,8 +89,8 @@ seconds, -1 unknown). The update window (section 8) shows them.
 3. Size (when known) and SHA-256 must match, otherwise the `.part` is deleted ("damaged").
 4. Rename to `MicControl-<version>.exe`, stage `Ready`. The update window (section 8) shows **Restart to update**,
    or restarts at once when the user pressed **Install**; when the window is closed, the tray balloon "Mic Control
-   X.Y.Z is ready" appears (a click on it applies). The tray item and the settings button **Restart to update** open
-   the update window. Nothing installs without a click.
+   X.Y.Z is ready" appears (a click on it applies). The tray item opens the update window, the settings row button
+   **Restart to update** restarts. Nothing installs without a click.
 
 ## 5. Apply
 
@@ -104,8 +108,8 @@ Apply mode (`UpdateApply.Run`, routed in `Program.Main` before the mutex and any
    compare sizes. Any failure after the rename deletes the partial copy and renames `.old` back.
 3. Start `MicControl.exe --startup` (tray only) in its own folder and exit (0 = swapped, 1 = failed).
 
-The new instance (`Updater.Startup`) shows the balloon "Updated to vX.Y.Z" once when `applied.json` names the
-running version, deletes the marker, and in a background thread (20 x 0.5 s retries) deletes `MicControl.exe.old`
+The new instance (`Updater.Startup`) raises the toast "Updated to vX.Y.Z" once when `applied.json` names the
+running version (a tray balloon, section 9), deletes the marker, and in a background thread (20 x 0.5 s retries) deletes `MicControl.exe.old`
 and every `MicControl-<v>.exe(.part)` in `updates\` that is not newer than the running version.
 
 ## 6. Failure handling
@@ -128,25 +132,27 @@ the fix's release notes must say so. Version 1.0.0 has no updater: its copies ne
 - App tests (`tests\UpdateTests.cs`, run by `build\build.ps1`, compiled with the vendored library): the app's
   configuration (repository, asset, names, data folder, override variable, relaunch arguments), the API and
   redirect URLs of this repository and the app's messages, `MIC_CONTROL_RELEASE_URL`, the download as
-  `MicControl-<version>.exe` and the helper arguments, the apply-mode routing and the swap of a running stand-in exe
-  in a folder with spaces and parentheses, the data folder.
+  `MicControl-<version>.exe` and the helper arguments, the presenter over this app's release (pill text and tooltip,
+  sheet title, subtitle and notes, **Install** downloading and restarting into the verified file, Later), the tray
+  balloon text of the presenter's toasts, the apply-mode routing and the swap of a running stand-in exe in a folder
+  with spaces and parentheses, the data folder.
 - Library tests (in the library, on .NET Framework 4 and .NET 8): version parsing, `SHA256SUMS`, every check
   outcome with a fake network (API document, redirect fallback, override, errors), download and verification,
   apply and its refusals, startup cleanup, the swap and the apply mode with relaunch, the schedule and
-  `UpdateScheduler`, the JSON reader. Before the library was extracted, the full former suite of this repository ran
-  unchanged against the vendored copy and passed.
-- End-to-end before every release that touches the update path (2.2.0 did: the engine moved into the library):
-  `docs\BUILD.md`, section 5.
+  `UpdateScheduler`, the JSON reader, the release-note blocks, the formats of `UpdateText` and the presenter's
+  transitions (first announcement, Later, Install arming, Try again, the ready toast, the "updated" toast, the pill,
+  panel and sheet models).
+- End-to-end before every release that touches the update path: `build\e2e-update.ps1` (`docs\BUILD.md`, section 5).
 - The update window is not part of `--self-test` (like the updater, it is created only outside the self-test); it is
   checked in the end-to-end run against a local release document with notes.
 
 ## 8. Update window
 
-`src\UpdateWindow.cs` (`UpdateWindow`, `MarkdownView`), wired in `SettingsWindow`: the update notice shared by the
-softoblivion desktop apps (the "update sheet": a modal notice with the release notes, Install and Later) as a WPF
-window. It is
-a top-level window of its own, so it works while the settings window is hidden in the tray; every status reaches it
-through the dispatcher-marshalled `OnStatus` of the settings window.
+`src\UpdateWindow.cs` (`UpdateWindow`, `NotesView`), created by `UpdateHost`: the update notice shared by the
+softoblivion desktop apps (the "update sheet": a notice with the release notes, Install and Later) as a WPF window.
+It only draws the presenter's `SheetView` (`UpdateWindow.Render`, called on every change whether the window is visible
+or not) and sends the clicks back (`Run(command)`, `Later()`); when it opens and what its button does is decided in the
+library (section 9). It is a top-level window of its own, so it works while the settings window is hidden in the tray.
 
 - Look: the settings window's frame (theme `Frame` / `FrameEdge` / `FrameShadow`, the notes on a `Sheet` panel),
   the type roles of the app (title Display, meta and progress Caption, notes Body, code Mono), the shared control
@@ -156,20 +162,38 @@ through the dispatcher-marshalled `OnStatus` of the settings window.
   its header. A theme change recolours it with the settings window (shared `ThemeLook`).
 - Opens by itself the first time in a run that a status names a newer version (`Available`, `Downloading` or
   `Ready` of a version not announced yet, including a verified earlier download found at launch); never for
-  `UpToDate`, `Error` or `Checking`. It opens again only from the tray item (**Download update**,
-  **Downloading update…**, **Restart to update**) or the settings button (**Download**, **Show progress**, **Show
-  update**, **Restart to update**), which open the window instead of acting while a newer version is known.
-- Content: "Mic Control X.Y.Z"; "Installed vA.B.C · 12.1 MB · Oct 21, 2026" (size in KB under 1 MB; date in local
-  time, en-US; unknown parts left out); the notes rendered from Markdown (headings as bold lines, `-` / `*` / `+`
-  bullets and numbered items with their indent, quotes, fenced code, rules, paragraphs; inline bold, italic, code,
-  `[text](url)` and bare links; only http / https targets become links, opened in the browser; HTML stays text), or
-  "No release notes for this version."; while downloading a bar and "42% · 5.1 MB of 12.1 MB".
-- Buttons by stage: `Available` **Install** (arms the install and starts the download; while the updater still
-  finishes a check it retries every 400 ms); `Downloading` "Downloading… 42%" (disabled); `Ready` **Restart to
-  update**, or the restart at once when the install is armed (`Updater.Apply()`, then the app quits); `Ready` with
-  `CanApply` false: disabled, the tooltip says why; `Error` after a failed download: the message and **Try again**
-  (download again, armed); `Error` after a failed check: **Try again** starts a check; `Checking` "Checking…"
-  (disabled). `UpToDate` hides the window and forgets the version.
-- **Later**, the close button, Esc and closing the window hide it and disarm a pending install; it does not open
-  again by itself for the same version in this run. The ready balloon still appears for a background download that
-  finishes while the window is hidden.
+  `UpToDate`, `Error` or `Checking`. It opens again from the version pill or the tray item (`UpdateHost.PillClicked`:
+  the sheet while a newer version is known or its download failed, otherwise the panel's action).
+- Content: "Mic Control X.Y.Z"; "Installed vA.B.C · 12.1 MB · Oct 21, 2026" (`UpdateText` formats: 1024-based sizes,
+  en-US dates in local time, unknown parts left out); the notes drawn from the library's `NoteBlock`s (headings as
+  Title / Label lines, bullets and numbered items with their indent, quotes, fenced code, rules, paragraphs; inline
+  bold, italic, code and links; only https targets become links, opened in the browser, a failed open raises an
+  error balloon; HTML stays text), or "No release notes for this version."; while downloading a bar and "42% · 5.1
+  MB of 12.1 MB".
+- Buttons by stage (`SheetView.Action`): `Available` **Install**; `Downloading` "Downloading… 42%" (disabled);
+  `Ready` **Restart to update**, disabled with the status message as tooltip when the copy cannot replace its own
+  file; `Error` **Try again** with the message; `Checking` "Checking…" (disabled). `UpToDate` closes the window.
+- **Later**, the close button, Esc and closing the window call `Presenter.Later()`: the window hides and a pending
+  install is disarmed; it does not open again by itself for the same version in this run.
+
+## 9. Update notice (presenter)
+
+The notice rules (when the sheet opens, Install arming, Later, Try again, the toasts) live in the library
+(`UpdatePresenter`, documented with it as "Update notice"); this app only maps the models to its views:
+
+| Presenter model | Mic Control view |
+|---|---|
+| `PillView` | `TitleBar.ShowUpdate`: the version text, the dot (accent, pulsing accent while downloading, mint when ready) and the tooltip |
+| `SheetView` | `UpdateWindow.Render` (section 8) |
+| `PanelView.StatusLine`, `RowAction` | the update row of the Settings sheet: the status line and its button (**Check for updates**, **Download**, the percentage, **Restart to update**); a click runs the button's command |
+| `PanelView.Action` | the tray item `updateItem` (label and enabled state); a click is `PillClicked` |
+| `UpdateToast` | a tray balloon (`SettingsWindow.ShowToast`, `AppUpdate.Balloon`): a toast with a button is "<its text>" / "Click to restart and update." and runs the button's action when the balloon is clicked; a plain toast ("Updated to v2.3.0") is the text under the app name |
+
+- The balloons: "Mic Control X.Y.Z is ready" (one per version, only when the update window is closed and the install was
+  not requested; a click restarts) and "Updated to vX.Y.Z" (the first start after a swap).
+- **Restart**: `Presenter.ApplyUpdate` saves the settings (`CommitAppearance`), then `Updater.Apply()`; on success the
+  presenter calls `Exit()`. The app has no work that a restart interrupts (`HasActiveWork` is not set).
+- **Download updates automatically**: the Settings switch saves, then `Presenter.AutoDownloadChanged(on)`; switching on
+  while a version is available starts its download.
+- **Try again** after a failed download downloads again and does not arm the install: the next **Ready** shows
+  **Restart to update**.

@@ -22,6 +22,8 @@ static class UpdateTests {
             Run("check: API and redirect of the app's repository, app messages",CheckThroughApp);
             Run("check: MIC_CONTROL_RELEASE_URL replaces GitHub",ReleaseOverride);
             Run("download and apply: MicControl-<version>.exe in the data folder, helper arguments",DownloadAndApply);
+            Run("presenter: the app's pill, sheet and Install over a published release",PresenterThroughApp);
+            Run("toasts: tray balloon text of the presenter's toasts",BalloonText);
             Run("apply mode: routed by the flag, swaps a running stand-in",ApplyMode);
             Run("data folder follows MIC_CONTROL_HOME",DataFolder);
         } finally { Environment.SetEnvironmentVariable(AppPaths.HomeVariable,home); try { Directory.Delete(Path.GetDirectoryName(root),true); } catch { } }
@@ -87,6 +89,34 @@ static class UpdateTests {
         string exe=null,arguments=null; u.Spawn=delegate(string e,string a) { exe=e; arguments=a; return true; };
         Assert(u.Apply(),"apply"); Equal(file,exe,"the downloaded exe runs the apply mode");
         Equal("--apply-update "+Process.GetCurrentProcess().Id+" \""+AppPaths.ExePath+"\"",arguments,"arguments name the running exe");
+    }
+    // The release as the API document carries it (notes and date), the exe and its checksum as Published() serves them.
+    static FakeNet PublishedWithNotes(string content) {
+        FakeNet net=Published(content);
+        net.Texts["https://api.github.com/repos/softoblivion/cute-mic-control/releases/latest"]="{\"tag_name\":\"v9.0.0\",\"body\":\"## What is new\\n- A **bold** item\",\"published_at\":\"2026-10-21T10:00:00Z\",\"assets\":[{\"name\":\"MicControl.exe\",\"size\":"+Encoding.UTF8.GetByteCount(content)+",\"browser_download_url\":\""+Base+"MicControl.exe\"},{\"name\":\"SHA256SUMS\",\"size\":100,\"browser_download_url\":\""+Base+"SHA256SUMS\"}]}";
+        return net;
+    }
+    static void PresenterThroughApp() {
+        Updater u=Make(PublishedWithNotes("new build"),Folder("presenter")); UpdatePresenter p=new UpdatePresenter(u,null);
+        bool applied=false,quit=false; p.StartDownload=delegate { u.Download(); }; p.ApplyUpdate=delegate { applied=true; return true; }; p.OnQuit=delegate { quit=true; };
+        Equal("v"+AppInfo.Version,p.View.Pill.Text,"pill text is the display version"); Assert(!p.View.Sheet.Open,"no sheet before a check");
+        u.Check();
+        Assert(p.View.Sheet.Open,"the sheet opens by itself for a newer version"); Equal("Mic Control 9.0.0",p.View.Sheet.Title,"sheet title");
+        Assert(p.View.Sheet.Subtitle.StartsWith("Installed v"+AppInfo.Version+" · ")&&p.View.Sheet.Subtitle.EndsWith("Oct 21, 2026"),"subtitle: installed, size, date ("+p.View.Sheet.Subtitle+")");
+        Equal(PillState.Available,p.View.Pill.State,"pill dot"); Equal("Mic Control 9.0.0 is available",p.View.Pill.Tooltip,"pill tooltip");
+        Equal(NoteBlockKind.Heading,p.View.Sheet.Notes[0].Kind,"notes rendered as blocks"); Equal("Install",p.View.Sheet.Action.Label,"main button");
+        p.Run(UpdateCommand.Install);
+        Assert(applied&&quit,"Install downloads, then restarts into the verified file"); Assert(File.Exists(Path.Combine(AppPaths.Updates,"MicControl-9.0.0.exe")),"MicControl-9.0.0.exe is saved");
+        p.Later(); Assert(!p.View.Sheet.Open,"Later closes the sheet");
+    }
+    static void BalloonText() {
+        string title,text; bool clicked=false;
+        AppUpdate.Balloon(new UpdateToast { Level=ToastLevel.Success,Text="Mic Control 9.0.0 is ready",ActionLabel=UpdateText.Restart,Action=delegate { clicked=true; },Sticky=true },out title,out text);
+        Equal("Mic Control 9.0.0 is ready",title,"ready balloon title"); Equal("Click to restart and update.",text,"ready balloon text"); Assert(!clicked,"building the text does not click");
+        AppUpdate.Balloon(new UpdateToast { Level=ToastLevel.Success,Text="Mic Control 9.0.0 is ready",ActionLabel=UpdateText.View,Action=delegate { } },out title,out text);
+        Equal("Click to view.",text,"copy that cannot apply asks for a view");
+        AppUpdate.Balloon(new UpdateToast { Level=ToastLevel.Success,Text="Updated to v9.0.0" },out title,out text);
+        Equal("Mic Control",title,"plain toast under the app name"); Equal("Updated to v9.0.0",text,"updated toast text");
     }
     static void ApplyMode() {
         Assert(UpdateApply.IsApplyMode(new string[]{"--apply-update","1","x"})&&!UpdateApply.IsApplyMode(new string[]{"--startup"})&&!UpdateApply.IsApplyMode(new string[0]),"routing flag");

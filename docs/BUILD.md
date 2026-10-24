@@ -56,6 +56,13 @@ section 10).
 
 ## 5. End-to-end update test (before every release that touches the update path)
 
+`powershell -ExecutionPolicy Bypass -File build\e2e-update.ps1 [-Mode auto|install|both] [-BalloonShots <folder>]`
+does the steps below twice (**Download updates automatically** on, then off with **Install**), builds version N and
+N+1 patch itself, presses the update window's button through UI Automation and prints one `PASS` / `FAIL` line per
+assert; the exit code is 0 when all pass. The "Updated to" balloon is a Windows notification that UI Automation does
+not list: with `-BalloonShots` the screen corners are saved as pictures 2.5 s after the new instance starts.
+The steps by hand:
+
 1. `build\build.ps1` (version N in `release\`), then `build\build.ps1 -Version <N+1> -OutDir <scratch>\server -SkipTests`.
 2. In `<scratch>\server` write `latest.json`:
    `{"tag_name":"v<N+1>","body":"## What is new\n- A **bold** item","published_at":"2026-10-21T10:00:00Z","assets":[{"name":"MicControl.exe","size":<bytes>,"browser_download_url":"http://127.0.0.1:8765/MicControl.exe"},{"name":"SHA256SUMS","browser_download_url":"http://127.0.0.1:8765/SHA256SUMS"}]}`.
@@ -79,7 +86,7 @@ Run of 2026-10-21 (1.1.0 -> 1.1.1): check and download in under a second, swap a
 3. Commit `Release vX.Y.Z` on `dev`, check that tracked files and history hold no personal data or local paths, push, tag `vX.Y.Z`, push the tag.
 4. `gh release create vX.Y.Z release\MicControl.exe release\SHA256SUMS --title vX.Y.Z --notes-file docs\releases\vX.Y.Z.md`.
 5. Download the published exe into a fresh folder and start it: the settings window must report
-   "Mic Control is up to date".
+   "You have the latest version".
 
 ## 7. Troubleshooting
 

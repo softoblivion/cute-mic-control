@@ -7,6 +7,8 @@ text of its GitHub Release as it is.
 
 | Version | Date | Summary |
 |---|---|---|
+| [v2.3.0](v2.3.0.md) | 2026-10-24 | Update notice follows the shared rules; same window |
+| [v2.2.0](v2.2.0.md) | 2026-10-23 | Scale setting, title bar, Sora type, Settings sheet |
 | [v2.1.0](v2.1.0.md) | 2026-10-21 | Update window with release notes, Install and Later |
 | [v2.0.0](v2.0.0.md) | 2026-10-21 | Four window themes, darker background, unified button states |
 | [v1.2.0](v1.2.0.md) | 2026-10-21 | Update check every 5 minutes with back-off |

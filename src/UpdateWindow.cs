@@ -1,38 +1,32 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Globalization;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using System.Windows.Threading;
 using SelfUpdate;
 namespace MicControl {
-// The update window: a newer release with its notes, the download progress and Install / Later. Behaviour contract:
-// docs\SELF_UPDATE.md, section 8. A top-level window of its own (it works while the settings window is hidden in the
-// tray), fixed size like every window of the app: no resize, no maximize; the height follows the content up to 70 %
+// The update window: draws the presenter's SheetView (a newer release with its notes, the download progress, Install /
+// Later) and sends its clicks back; when it opens, what it says and what the buttons do is the presenter's decision
+// (docs\SELF_UPDATE.md, sections 8 and 9). A top-level window of its own (it works while the settings window is hidden in
+// the tray), fixed size like every window of the app: no resize, no maximize; the height follows the content up to 70 %
 // of the work area. It shares the settings window's ThemeLook and control styles, so a theme change recolours both.
 class UpdateWindow : Window {
-    readonly Updater updater; readonly ThemeLook look; readonly Window anchor; readonly Action apply;
-    Grid shell; TextBlock title,meta,progressText,message; StackPanel notes; Border progressBox; ColumnDefinition doneColumn,restColumn; Button install;
-    UpdateStatus last; string rendered; bool armed,closing; readonly DispatcherTimer retry=new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(400) };
-    internal UpdateWindow(Updater updater,ThemeLook look,ResourceDictionary resources,Window anchor,Action apply) {
-        this.updater=updater; this.look=look; this.anchor=anchor; this.apply=apply;
+    readonly UpdatePresenter presenter; readonly ThemeLook look; readonly Window anchor; readonly Func<string,bool> openLink;
+    Grid shell,root; TextBlock title,meta,progressText,message; StackPanel notes; Border progressBox; ColumnDefinition doneColumn,restColumn; Button later,action;
+    List<NoteBlock> rendered; bool closing;
+    const double ContentWidth=420;
+    internal UpdateWindow(UpdatePresenter presenter,ThemeLook look,ResourceDictionary resources,Window anchor,Func<string,bool> openLink) {
+        this.presenter=presenter; this.look=look; this.anchor=anchor; this.openLink=openLink;
         Width=ContentWidth+24; SizeToContent=SizeToContent.Height; MaxHeight=Math.Round(SystemParameters.WorkArea.Height*.7)+24;
         WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent; WindowStartupLocation=WindowStartupLocation.Manual;
         Title=AppInfo.ProductName+" · Update"; Resources=resources; FontFamily=TypeRoles.TextFamily; Foreground=Theme.Text;
-        retry.Tick+=delegate { retry.Stop(); StartDownload(); };
         Build();
-        PreviewKeyDown+=delegate(object s,KeyEventArgs e) { if(e.Key==Key.Escape) { e.Handled=true; Later(); } };
-        Closing+=delegate(object s,System.ComponentModel.CancelEventArgs e) { if(!closing) { e.Cancel=true; Later(); } };
+        PreviewKeyDown+=delegate(object s,KeyEventArgs e) { if(e.Key==Key.Escape) { e.Handled=true; presenter.Later(); } };
+        Closing+=delegate(object s,System.ComponentModel.CancelEventArgs e) { if(!closing) { e.Cancel=true; presenter.Later(); } };
     }
-    const double ContentWidth=420; Grid root;
     // The app's Scale setting: the content scales as one LayoutTransform, the width follows, the height follows the content.
     internal void SetScale(double factor) { root.LayoutTransform=factor==1?Transform.Identity:new ScaleTransform(factor,factor); Width=ContentWidth*factor+24; }
     void Build() {
@@ -51,10 +45,10 @@ class UpdateWindow : Window {
         title=Theme.Label(AppInfo.ProductName,TypeRoles.Display,Theme.Text); title.TextTrimming=TextTrimming.CharacterEllipsis; heading.Children.Add(title);
         meta=Theme.Label("",TypeRoles.Caption,Theme.Muted); meta.TextWrapping=TextWrapping.Wrap; meta.Margin=new Thickness(0,4,0,0); heading.Children.Add(meta);
         Button close=new Button { Style=(Style)Resources["TitleButton"],Content=Icons.Make(Icons.Close,15),HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Top,Margin=new Thickness(0,4,0,0),ToolTip="Later" };
-        System.Windows.Automation.AutomationProperties.SetName(close,"Close"); close.Click+=delegate { Later(); }; header.Children.Add(close);
+        System.Windows.Automation.AutomationProperties.SetName(close,"Close"); close.Click+=delegate { presenter.Later(); }; header.Children.Add(close);
         Border sheet=new Border { CornerRadius=new CornerRadius(16),Background=look.Sheet,BorderBrush=Theme.Hairline,BorderThickness=new Thickness(1),Padding=new Thickness(16,10,6,10),Margin=new Thickness(0,0,10,0) }; Grid.SetRow(sheet,1); layout.Children.Add(sheet);
         ScrollViewer scroll=new ScrollViewer { VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,12,0) }; sheet.Child=scroll;
-        notes=new StackPanel(); scroll.Content=notes; System.Windows.Automation.AutomationProperties.SetName(scroll,"Release notes");
+        notes=new StackPanel(); scroll.Content=notes; System.Windows.Automation.AutomationProperties.SetName(scroll,UpdateText.ReleaseNotes);
         progressBox=new Border { Visibility=Visibility.Collapsed,Margin=new Thickness(2,16,12,0) }; Grid.SetRow(progressBox,2); layout.Children.Add(progressBox);
         StackPanel progress=new StackPanel(); progressBox.Child=progress;
         Grid track=new Grid { Height=6 }; track.Children.Add(new Border { CornerRadius=new CornerRadius(3),Background=Theme.Brush("#1FFFFFFF") });
@@ -63,139 +57,89 @@ class UpdateWindow : Window {
         progressText=Theme.Label("",TypeRoles.Caption,Theme.Ink2); progressText.Margin=new Thickness(0,7,0,0); progress.Children.Add(progressText);
         message=Theme.Label("",TypeRoles.Caption,Theme.Rose); message.TextWrapping=TextWrapping.Wrap; message.Visibility=Visibility.Collapsed; message.Margin=new Thickness(2,12,12,0); Grid.SetRow(message,3); layout.Children.Add(message);
         StackPanel buttons=new StackPanel { Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,16,10,0) }; Grid.SetRow(buttons,4); layout.Children.Add(buttons);
-        Button later=new Button { Content="Later",Height=32,MinWidth=88,Padding=new Thickness(16,0,16,0),HorizontalContentAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,0,8,0) }; later.Click+=delegate { Later(); }; buttons.Children.Add(later);
-        install=new Button { Content="Install",Height=32,MinWidth=140,Padding=new Thickness(18,0,18,0),HorizontalContentAlignment=HorizontalAlignment.Center,Style=(Style)Resources["Tinted"],Background=look.AccentGrad,Effect=look.AccentGlow };
-        ToolTipService.SetShowOnDisabled(install,true); install.Click+=delegate { Install(); }; buttons.Children.Add(install);
+        later=new Button { Content=UpdateText.Later,Height=32,MinWidth=88,Padding=new Thickness(16,0,16,0),HorizontalContentAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,0,8,0) }; later.Click+=delegate { presenter.Later(); }; buttons.Children.Add(later);
+        action=new Button { Content=UpdateText.Install,Height=32,MinWidth=140,Padding=new Thickness(18,0,18,0),HorizontalContentAlignment=HorizontalAlignment.Center,Style=(Style)Resources["Tinted"],Background=look.AccentGrad,Effect=look.AccentGlow };
+        ToolTipService.SetShowOnDisabled(action,true);
+        action.Click+=delegate { UpdateCommand c=action.Tag is UpdateCommand?(UpdateCommand)action.Tag:UpdateCommand.None; if(c!=UpdateCommand.None)presenter.Run(c); };
+        buttons.Children.Add(action);
     }
-    internal bool HasRelease { get { return last!=null; } }
-    // Every updater status passes through here (on the dispatcher), whether the window is visible or not.
-    internal void ShowStatus(UpdateStatus s) {
-        bool newer=s.Latest!=null&&SemVer.IsNewer(s.Latest,s.Current);
-        if(s.Stage==UpdateStage.UpToDate) { armed=false; retry.Stop(); last=null; if(IsVisible)Hide(); return; }
-        if(newer)last=s; if(last==null)return;
-        UpdateStatus info=newer?s:last;
-        title.Text=AppInfo.ProductName+" "+info.Latest; meta.Text=Meta(info);
-        string key=info.Latest+"\n"+info.Notes; if(rendered!=key) { rendered=key; MarkdownView.Render(notes,info.Notes,look); }
-        bool downloading=s.Stage==UpdateStage.Downloading; int percent=(int)Math.Floor(Math.Max(0,Math.Min(1,s.Progress))*100);
-        progressBox.Visibility=downloading?Visibility.Visible:Visibility.Collapsed;
-        if(downloading) { doneColumn.Width=new GridLength(percent,GridUnitType.Star); restColumn.Width=new GridLength(100-percent,GridUnitType.Star); progressText.Text=ProgressText(s,percent); }
-        message.Visibility=s.Stage==UpdateStage.Error?Visibility.Visible:Visibility.Collapsed; message.Text=s.Stage==UpdateStage.Error?s.Message:"";
-        install.ToolTip=null;
-        switch(s.Stage) {
-            case UpdateStage.Available: install.Content="Install"; install.IsEnabled=true; if(armed)StartDownload(); break;
-            case UpdateStage.Downloading: install.Content="Downloading… "+percent+"%"; install.IsEnabled=false; break;
-            case UpdateStage.Ready:
-                if(armed&&s.CanApply) { armed=false; install.Content="Restarting…"; install.IsEnabled=false; Dispatcher.BeginInvoke((Action)delegate { apply(); }); break; }
-                armed=false; install.Content="Restart to update"; install.IsEnabled=s.CanApply;
-                if(!s.CanApply)install.ToolTip="This copy cannot replace its own file. Download the release from GitHub.";
-                break;
-            case UpdateStage.Error: install.Content="Try again"; install.IsEnabled=true; break;
-            default: install.Content="Checking…"; install.IsEnabled=false; break;
-        }
+    // Every presenter change, whether the window is visible or not: open, close or update the sheet.
+    internal void Render(SheetView v) {
+        if(closing)return;
+        if(!v.Open) { if(IsVisible)Hide(); return; }
+        title.Text=v.Title; meta.Text=v.Subtitle;
+        // The notes list is the same instance while the release is the same: re-render only on a change, so the scroll
+        // position survives the progress updates.
+        if(!object.ReferenceEquals(rendered,v.Notes)) { rendered=v.Notes; NotesView.Render(notes,v.Notes,v.EmptyNotes,look,openLink); }
+        progressBox.Visibility=v.ShowProgress?Visibility.Visible:Visibility.Collapsed;
+        if(v.ShowProgress) { int percent=UpdateText.Percent(v.Progress); doneColumn.Width=new GridLength(percent,GridUnitType.Star); restColumn.Width=new GridLength(100-percent,GridUnitType.Star); progressText.Text=v.ProgressText; }
+        message.Visibility=v.Error!=null?Visibility.Visible:Visibility.Collapsed; message.Text=v.Error??"";
+        later.Content=v.LaterLabel;
+        action.Content=v.Action.Label; action.IsEnabled=v.Action.Enabled; action.Tag=v.Action.Command; action.ToolTip=v.Action.Tooltip;
+        if(!IsVisible)Open();
     }
-    void Install() {
-        UpdateStatus s=updater.Status;
-        if(s.Stage==UpdateStage.Ready) { apply(); return; }
-        armed=true;
-        if(s.Stage==UpdateStage.Error&&s.Latest==null)updater.CheckInBackground(); else StartDownload();
-    }
-    // Starts the download of an armed install; while the updater still finishes a check, retries shortly (an
-    // automatic download that starts meanwhile makes the retry a no-op, and its Ready applies the armed install).
-    void StartDownload() {
-        if(!armed)return; UpdateStatus s=updater.Status;
-        if(s.Stage!=UpdateStage.Available&&!(s.Stage==UpdateStage.Error&&s.Latest!=null))return;
-        if(updater.Busy) { retry.Stop(); retry.Start(); return; }
-        updater.DownloadInBackground();
-    }
-    internal void Later() { armed=false; retry.Stop(); if(IsVisible)Hide(); }
-    internal void Open() {
-        if(last==null)return;
-        if(IsVisible) { Activate(); return; }
+    void Open() {
         shell.BeginAnimation(OpacityProperty,null); shell.Opacity=0; Show(); UpdateLayout(); Place();
         Topmost=true; Activate(); Topmost=false;
         TranslateTransform move=(TranslateTransform)shell.RenderTransform; move.Y=14; Theme.Fade(shell,1,.45); move.BeginAnimation(TranslateTransform.YProperty,Theme.Motion(0,.55));
     }
+    // A click on the version pill or the tray item while the sheet is already open: bring it forward.
+    internal void Raise() { if(IsVisible&&!closing)Activate(); }
     // Centred over the settings window while it is visible, otherwise on the work area; kept inside the work area.
     void Place() {
         Rect a=SystemParameters.WorkArea; double w=ActualWidth,h=ActualHeight,cx=a.Left+a.Width/2,cy=a.Top+a.Height/2;
         if(anchor!=null&&anchor.IsVisible&&anchor.WindowState==WindowState.Normal) { cx=anchor.Left+anchor.ActualWidth/2; cy=anchor.Top+anchor.ActualHeight/2; }
         Left=Math.Max(a.Left,Math.Min(a.Right-w,cx-w/2)); Top=Math.Max(a.Top,Math.Min(a.Bottom-h,cy-h/2));
     }
-    internal void Shutdown() { closing=true; retry.Stop(); Close(); }
-    static readonly CultureInfo English=CultureInfo.GetCultureInfo("en-US");
-    internal static string Meta(UpdateStatus s) {
-        List<string> parts=new List<string>(); parts.Add("Installed v"+s.Current);
-        if(s.Size>=0)parts.Add(Bytes(s.Size));
-        if(s.PublishedAt>=0)parts.Add(new DateTime(1970,1,1,0,0,0,DateTimeKind.Utc).AddSeconds(s.PublishedAt).ToLocalTime().ToString("MMM d, yyyy",English));
-        return string.Join(" · ",parts.ToArray());
-    }
-    internal static string Bytes(long n) { return n<1048576?Math.Round(n/1024.0).ToString("0",English)+" KB":(n/1048576.0).ToString("0.0",English)+" MB"; }
-    static string ProgressText(UpdateStatus s,int percent) { return s.Size>0?percent+"% · "+Bytes((long)(Math.Min(1,s.Progress)*s.Size))+" of "+Bytes(s.Size):percent+"%"; }
+    internal void Shutdown() { closing=true; Close(); }
 }
-// Release notes from Markdown into WPF text: headings (bold lines), "-" / "*" / "+" bullets and numbered items with
-// their indent, quotes, fenced code, rules and paragraphs; inline **bold**, *italic*, `code`, [text](url) and bare
-// http(s) links (opened in the browser on click). Anything else, HTML included, stays plain text.
-static class MarkdownView {
-    static readonly Regex Heading=new Regex(@"^\s{0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$"),Rule=new Regex(@"^\s{0,3}([-*_])(\s*\1){2,}\s*$"),
-        Bullet=new Regex(@"^(\s*)[-*+]\s+(.*)$"),Numbered=new Regex(@"^(\s*)(\d{1,3})[.)]\s+(.*)$"),Quote=new Regex(@"^\s{0,3}>\s?(.*)$"),
-        Token=new Regex(@"\*\*(.+?)\*\*|__(.+?)__|`([^`]+)`|\[([^\]]+)\]\(\s*([^)\s]+)[^)]*\)|(https?://[^\s<>()]*[^\s<>().,;:!?'""])|(?<![\w*])\*(?![\s*])([^*]+?)\*(?![\w*])|\\([\\`*_{}\[\]()#+\-.!>])");
-    internal static void Render(Panel target,string text,ThemeLook look) {
+// Release notes (the library's NoteBlocks) as WPF text in the app's type roles and colours. Only https targets arrive as
+// links (the library drops the others); a click opens the target in the browser through the host.
+static class NotesView {
+    internal static void Render(Panel target,List<NoteBlock> blocks,string empty,ThemeLook look,Func<string,bool> openLink) {
         target.Children.Clear();
-        if(string.IsNullOrWhiteSpace(text)) { target.Children.Add(Block("No release notes for this version.",TypeRoles.Body,Theme.Muted,look,false)); return; }
-        StringBuilder paragraph=new StringBuilder(); StringBuilder code=null;
-        Action flush=delegate { if(paragraph.Length==0)return; target.Children.Add(Spaced(Block(paragraph.ToString(),TypeRoles.Body,Theme.Ink2,look,true),4,6)); paragraph.Length=0; };
-        foreach(string raw in text.Replace("\r\n","\n").Replace('\r','\n').Split('\n')) {
-            string line=raw.TrimEnd(); Match m;
-            if(code!=null) { if(line.TrimStart().StartsWith("```")) { target.Children.Add(Code(code.ToString().TrimEnd('\n'))); code=null; } else code.Append(raw).Append('\n'); continue; }
-            if(line.TrimStart().StartsWith("```")) { flush(); code=new StringBuilder(); continue; }
-            if(line.Trim().Length==0) { flush(); continue; }
-            if((m=Heading.Match(line)).Success) { flush(); TextBlock h=Block(m.Groups[2].Value,m.Groups[1].Length<=2?TypeRoles.Title:TypeRoles.Label,Theme.Text,look,true); target.Children.Add(Spaced(h,10,4)); continue; }
-            if(Rule.IsMatch(line)) { flush(); target.Children.Add(new Border { Height=1,Background=Theme.Brush("#1FFFFFFF"),Margin=new Thickness(0,8,0,8) }); continue; }
-            if((m=Bullet.Match(line)).Success) { flush(); target.Children.Add(Item("•",m.Groups[2].Value,m.Groups[1].Value.Length,look)); continue; }
-            if((m=Numbered.Match(line)).Success) { flush(); target.Children.Add(Item(m.Groups[2].Value+".",m.Groups[3].Value,m.Groups[1].Value.Length,look)); continue; }
-            if((m=Quote.Match(line)).Success) { flush(); target.Children.Add(new Border { BorderThickness=new Thickness(2,0,0,0),BorderBrush=Theme.Hairline,Padding=new Thickness(10,1,0,1),Margin=new Thickness(0,3,0,3),Child=Block(m.Groups[1].Value,TypeRoles.Body,Theme.Muted,look,true) }); continue; }
-            if(paragraph.Length>0)paragraph.Append(' '); paragraph.Append(line.Trim());
+        if(blocks==null||blocks.Count==0) { target.Children.Add(Plain(empty,TypeRoles.Body,Theme.Muted)); return; }
+        foreach(NoteBlock b in blocks) {
+            switch(b.Kind) {
+                case NoteBlockKind.Heading: target.Children.Add(Spaced(Rich(b,b.Level<=2?TypeRoles.Title:TypeRoles.Label,Theme.Text,look,openLink),10,4)); break;
+                case NoteBlockKind.Paragraph: target.Children.Add(Spaced(Rich(b,TypeRoles.Body,Theme.Ink2,look,openLink),4,6)); break;
+                case NoteBlockKind.Bullet: case NoteBlockKind.Numbered: target.Children.Add(Item(b,look,openLink)); break;
+                case NoteBlockKind.Quote: target.Children.Add(new Border { BorderThickness=new Thickness(2,0,0,0),BorderBrush=Theme.Hairline,Padding=new Thickness(10,1,0,1),Margin=new Thickness(0,3,0,3),Child=Rich(b,TypeRoles.Body,Theme.Muted,look,openLink) }); break;
+                case NoteBlockKind.Code: target.Children.Add(Code(b.Text)); break;
+                case NoteBlockKind.Rule: target.Children.Add(new Border { Height=1,Background=Theme.Brush("#1FFFFFFF"),Margin=new Thickness(0,8,0,8) }); break;
+            }
         }
-        if(code!=null)target.Children.Add(Code(code.ToString().TrimEnd('\n'))); flush();
         if(target.Children.Count>0) { FrameworkElement first=(FrameworkElement)target.Children[0]; Thickness t=first.Margin; first.Margin=new Thickness(t.Left,0,t.Right,t.Bottom); }
     }
     static FrameworkElement Spaced(FrameworkElement e,double top,double bottom) { e.Margin=new Thickness(0,top,0,bottom); return e; }
-    static TextBlock Block(string text,TypeRole role,Brush brush,ThemeLook look,bool inline) {
-        TextBlock b=new TextBlock { Foreground=brush,TextWrapping=TextWrapping.Wrap }; role.Apply(b);
-        if(inline)Inlines(b.Inlines,text,look); else b.Text=text; return b;
+    static TextBlock Plain(string text,TypeRole role,Brush brush) {
+        TextBlock b=new TextBlock { Text=text,Foreground=brush,TextWrapping=TextWrapping.Wrap }; role.Apply(b); return b;
     }
-    static Grid Item(string marker,string text,int indent,ThemeLook look) {
-        Grid row=new Grid { Margin=new Thickness(2+Math.Min(indent,8)/2*14,2,0,2) };
+    static TextBlock Rich(NoteBlock note,TypeRole role,Brush brush,ThemeLook look,Func<string,bool> openLink) {
+        TextBlock b=new TextBlock { Foreground=brush,TextWrapping=TextWrapping.Wrap }; role.Apply(b);
+        foreach(NoteSpan s in note.Spans)b.Inlines.Add(Span(s,look,openLink));
+        return b;
+    }
+    static Grid Item(NoteBlock note,ThemeLook look,Func<string,bool> openLink) {
+        Grid row=new Grid { Margin=new Thickness(2+note.Indent*14,2,0,2) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width=GridLength.Auto,MinWidth=16 }); row.ColumnDefinitions.Add(new ColumnDefinition());
-        TextBlock dot=Block(marker,TypeRoles.Body,look.AccentInk,look,false); dot.Margin=new Thickness(0,0,6,0); row.Children.Add(dot);
-        TextBlock body=Block(text,TypeRoles.Body,Theme.Ink2,look,true); Grid.SetColumn(body,1); row.Children.Add(body); return row;
+        TextBlock dot=Plain(note.Marker,TypeRoles.Body,look.AccentInk); dot.Margin=new Thickness(0,0,6,0); row.Children.Add(dot);
+        TextBlock body=Rich(note,TypeRoles.Body,Theme.Ink2,look,openLink); Grid.SetColumn(body,1); row.Children.Add(body); return row;
     }
     static Border Code(string text) {
-        return new Border { CornerRadius=new CornerRadius(8),Background=Theme.Brush("#14FFFFFF"),Padding=new Thickness(10,7,10,7),Margin=new Thickness(0,4,0,6),
-            Child=MonoBlock(text) };
+        TextBlock t=Plain(text,TypeRoles.Mono,Theme.Ink2);
+        return new Border { CornerRadius=new CornerRadius(8),Background=Theme.Brush("#14FFFFFF"),Padding=new Thickness(10,7,10,7),Margin=new Thickness(0,4,0,6),Child=t };
     }
-    static TextBlock MonoBlock(string text) { TextBlock t=new TextBlock { Text=text,Foreground=Theme.Ink2,TextWrapping=TextWrapping.Wrap }; TypeRoles.Mono.Apply(t); return t; }
-    static void Inlines(InlineCollection into,string text,ThemeLook look) {
-        int at=0;
-        foreach(Match m in Token.Matches(text)) {
-            if(m.Index>at)into.Add(new Run(text.Substring(at,m.Index-at)));
-            GroupCollection g=m.Groups;
-            if(g[1].Success||g[2].Success) { Bold b=new Bold { Foreground=Theme.Text }; Inlines(b.Inlines,g[1].Success?g[1].Value:g[2].Value,look); into.Add(b); }
-            else if(g[3].Success)into.Add(new Run(g[3].Value) { FontFamily=TypeRoles.MonoFamily,Background=Theme.Brush("#1FFFFFFF"),Foreground=Theme.Text });
-            else if(g[4].Success)into.Add(Link(g[4].Value,g[5].Value,look));
-            else if(g[6].Success)into.Add(Link(g[6].Value,g[6].Value,look));
-            else if(g[7].Success) { Italic i=new Italic(); Inlines(i.Inlines,g[7].Value,look); into.Add(i); }
-            else into.Add(new Run(g[8].Value));
-            at=m.Index+m.Length;
+    static Inline Span(NoteSpan s,ThemeLook look,Func<string,bool> openLink) {
+        Run run=new Run(s.Text); Inline inline=run;
+        if(s.Code) { run.FontFamily=TypeRoles.MonoFamily; run.Background=Theme.Brush("#1FFFFFFF"); run.Foreground=Theme.Text; }
+        if(s.Url!=null) {
+            string url=s.Url; Hyperlink link=new Hyperlink(inline) { Foreground=look.AccentInk,Cursor=Cursors.Hand,ToolTip=url };
+            link.Click+=delegate { if(openLink!=null)openLink(url); }; inline=link;
         }
-        if(at<text.Length)into.Add(new Run(text.Substring(at)));
-    }
-    // Only http(s) targets become links; anything else (file:, javascript:, relative paths) stays its plain text.
-    static Inline Link(string text,string url,ThemeLook look) {
-        Uri uri; if(!Uri.TryCreate(url,UriKind.Absolute,out uri)||(uri.Scheme!=Uri.UriSchemeHttp&&uri.Scheme!=Uri.UriSchemeHttps))return new Run(text);
-        Hyperlink link=new Hyperlink(new Run(text)) { NavigateUri=uri,Foreground=look.AccentInk,Cursor=Cursors.Hand,ToolTip=uri.AbsoluteUri };
-        link.Click+=delegate { try { using(Process p=Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute=true })) { } } catch { } };
-        return link;
+        if(s.Bold)inline=new Bold(inline) { Foreground=Theme.Text };
+        if(s.Italic)inline=new Italic(inline);
+        return inline;
     }
 }
 }

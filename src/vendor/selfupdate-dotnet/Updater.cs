@@ -13,8 +13,9 @@ namespace SelfUpdate {
 // here: the host subscribes to OnStatus / OnToast (worker threads) and marshals them to its own UI thread.
 enum UpdateStage { Idle, Checking, UpToDate, Available, Downloading, Ready, Error }
 class UpdateStatus {
-    // Notes: Markdown body of the release (null when the source has none); PublishedAt: epoch seconds, -1 unknown.
-    internal UpdateStage Stage=UpdateStage.Idle; internal string Current,Latest,Notes,Message="Updates are not checked yet"; internal long Size=-1,PublishedAt=-1; internal double Progress; internal bool CanApply;
+    // Notes: Markdown body of the release (null when the source has none); PublishedAt: epoch seconds, -1 unknown;
+    // CheckedAt: epoch seconds of the last check that reached GitHub (up to date, available or ready), -1 none yet.
+    internal UpdateStage Stage=UpdateStage.Idle; internal string Current,Latest,Notes,Message="Updates are not checked yet"; internal long Size=-1,PublishedAt=-1,CheckedAt=-1; internal double Progress; internal bool CanApply;
     internal UpdateStatus Copy() { return (UpdateStatus)MemberwiseClone(); }
 }
 // Everything app-specific comes in here. Repo "owner/name"; AssetName the release asset and the running exe's file
@@ -35,10 +36,10 @@ class Updater {
             NoRelease="No release has been published yet",SaveFailed="Could not save the update file",StartFailed="Could not start the update helper",
             NotReady="The update is not ready to install",Missing="The downloaded update file is missing",Failed="The update check failed";
     }
-    internal Action<UpdateStatus> OnStatus; internal Action<string> OnToast; internal Func<bool> AutoDownload; // read once per check that finds a newer release
+    internal Action<UpdateStatus> OnStatus=null; internal Action<string> OnToast=null; internal Func<bool> AutoDownload=null; // read once per check that finds a newer release
     internal Func<string,string,bool> Spawn=DefaultSpawn; // (exe, arguments) -> started
     readonly UpdateConfig config; readonly IUpdateNet net; readonly object gate=new object(); readonly List<Action<UpdateStatus>> watchers=new List<Action<UpdateStatus>>();
-    UpdateStatus status=new UpdateStatus(); Release release; string expectedSha; int busy;
+    UpdateStatus status=new UpdateStatus(); Release release; string expectedSha; bool busy,checking,downloadWanted;
     internal Updater(UpdateConfig config,IUpdateNet net) {
         this.config=config; this.net=net??new WebNet(config.Stem+"/"+config.Version); status.Current=config.Version;
     }
@@ -61,30 +62,53 @@ class Updater {
         foreach(Action<UpdateStatus> watcher in listeners) { try { watcher(copy.Copy()); } catch { } }
         Action<UpdateStatus> handler=OnStatus; if(handler!=null) { try { handler(copy); } catch { } }
     }
-    bool Enter() { return Interlocked.CompareExchange(ref busy,1,0)==0; }
-    void Leave() { Interlocked.Exchange(ref busy,0); }
-    internal bool Busy { get { return busy!=0; } }
-    internal void CheckInBackground() { if(Enter())ThreadPool.QueueUserWorkItem(delegate { try { CheckCore(); } finally { Leave(); } }); }
-    internal void DownloadInBackground() { if(Enter())ThreadPool.QueueUserWorkItem(delegate { try { DownloadCore(); } finally { Leave(); } }); }
-    internal void Check() { if(!Enter())return; try { CheckCore(); } finally { Leave(); } }
-    internal void Download() { if(!Enter())return; try { DownloadCore(); } finally { Leave(); } }
+    // One operation at a time. A download requested while a check runs is remembered and starts when that check ends
+    // at Available (an Install click that lands in the moment between "available" and the end of the check); any
+    // other request while an operation runs is ignored.
+    bool Enter(bool check) {
+        lock(gate) {
+            if(busy) { if(checking&&!check)downloadWanted=true; return false; }
+            busy=true; checking=check; downloadWanted=false; return true;
+        }
+    }
+    void Leave() { lock(gate) { busy=false; checking=false; downloadWanted=false; } }
+    // Ends a check; true when a download was requested meanwhile and the check found a release to download.
+    bool LeaveCheck() {
+        lock(gate) { bool next=downloadWanted&&release!=null&&status.Stage==UpdateStage.Available; busy=false; checking=false; downloadWanted=false; return next; }
+    }
+    internal bool Busy { get { lock(gate)return busy; } }
+    internal void CheckInBackground() { if(Enter(true))ThreadPool.QueueUserWorkItem(delegate { RunCheck(); }); }
+    internal void DownloadInBackground() { if(Enter(false))ThreadPool.QueueUserWorkItem(delegate { try { DownloadCore(); } finally { Leave(); } }); }
+    internal void Check() { if(Enter(true))RunCheck(); }
+    internal void Download() { if(!Enter(false))return; try { DownloadCore(); } finally { Leave(); } }
+    void RunCheck() {
+        bool next=false;
+        try { CheckCore(); } finally { next=LeaveCheck(); }
+        if(next&&Enter(false)) { try { DownloadCore(); } finally { Leave(); } }
+    }
 
     static string MessageFor(NetException e) { return e.Failure==NetFailure.Limit?Messages.Limit:e.Failure==NetFailure.Offline?Messages.Offline:Messages.Failed; }
+    string ReadyMessage(string version) {
+        string message="Version "+version+" is ready to install";
+        return string.IsNullOrEmpty(config.ExePath)?message+" (applies to the packaged "+config.AssetName+" only)":message;
+    }
+    long Now() { return (long)(DateTime.UtcNow-new DateTime(1970,1,1,0,0,0,DateTimeKind.Utc)).TotalSeconds; }
+    void Checked() { lock(gate)status.CheckedAt=Now(); }
 
     void CheckCore() {
         lock(gate) { release=null; expectedSha=null; }
         Set(UpdateStage.Checking,Messages.Checking,0);
         try {
             Release found=Resolve();
-            if(!SemVer.IsNewer(found.Version,config.Version)) { Set(UpdateStage.UpToDate,config.AppName+" is up to date",0); return; }
+            if(!SemVer.IsNewer(found.Version,config.Version)) { Checked(); Set(UpdateStage.UpToDate,config.AppName+" is up to date",0); return; }
             if(found.Size<0&&found.AssetUrl!=null) {
                 try { found.Size=net.ContentLength(found.AssetUrl); }
                 catch(NetException e) { if(e.Failure==NetFailure.NotFound)throw new UpdateError("The release has no "+config.AssetName); throw; }
             }
             if(found.AssetUrl==null)throw new UpdateError("The release has no "+config.AssetName);
             lock(gate)release=found;
-            if(AlreadyDownloaded(found)) { Set(UpdateStage.Ready,"Version "+found.Version+" is ready to install",1); return; }
-            Set(UpdateStage.Available,"Version "+found.Version+" is available",0);
+            if(AlreadyDownloaded(found)) { Checked(); Set(UpdateStage.Ready,ReadyMessage(found.Version),1); return; }
+            Checked(); Set(UpdateStage.Available,"Version "+found.Version+" is available",0);
             Func<bool> auto=AutoDownload; if(auto!=null&&auto())DownloadCore();
         }
         catch(UpdateError e) { Set(UpdateStage.Error,e.Message,0); }
@@ -180,13 +204,13 @@ class Updater {
                     if(percent>lastPercent) { lastPercent=percent; Set(UpdateStage.Downloading,label+percent+"%",percent/100.0); }
                 });
             }
-            catch(NetException) { TryDelete(part); throw; }
+            catch(NetException e) { TryDelete(part); if(e.Failure==NetFailure.NotFound)throw new UpdateError("The release has no "+config.AssetName); throw; }
             catch(IOException) { TryDelete(part); throw new UpdateError(Messages.SaveFailed); }
             catch(UnauthorizedAccessException) { TryDelete(part); throw new UpdateError(Messages.SaveFailed); }
             if((r.Size>=0&&new FileInfo(part).Length!=r.Size)||actual!=sha) { TryDelete(part); throw new UpdateError(Messages.Damaged); }
             try { if(File.Exists(file))File.Delete(file); File.Move(part,file); } catch(Exception) { TryDelete(part); throw new UpdateError(Messages.SaveFailed); }
             lock(gate)expectedSha=sha;
-            Set(UpdateStage.Ready,"Version "+r.Version+" is ready to install",1);
+            Set(UpdateStage.Ready,ReadyMessage(r.Version),1);
         }
         catch(UpdateError e) { Set(UpdateStage.Error,e.Message,0); }
         catch(NetException e) { Set(UpdateStage.Error,MessageFor(e),0); }

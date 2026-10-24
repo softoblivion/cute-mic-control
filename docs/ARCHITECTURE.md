@@ -34,9 +34,11 @@ cute-mic-control\
     UpdateSetup.cs     AppUpdate: the app's values for the update library (no WPF / WinForms references)
     vendor\selfupdate-dotnet\  the update library (check, verified download, apply mode, schedule); a synced copy,
                        never edited here; VENDORED.txt names its version
-    SettingsWindow.cs  the window (title bar, main view, Settings sheet, hotkey editor), tray icon and menu, update
-                       UI glue, launch-at-login registry value, UiScale (the Scale setting)
-    UpdateWindow.cs    update window (new version, release notes from Markdown, progress, Install / Later)
+    UpdateHost.cs      wires the library into the app: Updater, UpdatePresenter, UpdateScheduler and the update window
+    SettingsWindow.cs  the window (title bar, main view, Settings sheet, hotkey editor), tray icon and menu, the views of
+                       the update models (pill, tray item, update row, balloons), launch-at-login registry value, UiScale
+                       (the Scale setting)
+    UpdateWindow.cs    update window (draws the presenter's sheet: new version, release notes, progress, Install / Later)
     Typography.cs      TypeRole / TypeRoles: the type scale and the embedded faces
     Chrome.cs          TitleBar, Segmented (the segmented control), SpringEase, Icons
     fonts\             Sora-W450 / W550 / W600 / W650.ttf, GeistMono-W450.ttf and their licences (embedded)
@@ -49,6 +51,7 @@ cute-mic-control\
     Version.cs         the version (single source) and product constants
   tests\UpdateTests.cs console test runner for the app's use of the update library (UpdateSetup.cs, Paths.cs)
   build\build.ps1      tests, font resources, build, SHA256SUMS
+  build\e2e-update.ps1 end-to-end update test against a local release server
   build\make-fonts.py  regenerates src\fonts\ from the published variable fonts (fontTools)
   docs\                ARCHITECTURE, SELF_UPDATE, BUILD, USER_GUIDE, THIRD_PARTY, releases\, assets\ (README images)
   .github\             issue templates
@@ -62,15 +65,15 @@ cute-mic-control\
 |---|---|---|---|
 | Startup and settings | `src\App.cs` | this file, section 5 | `Program.Main` routes `--apply-update` first, then the mutex `Local\MicControl.Glow.App` |
 | Runtime paths | `src\Paths.cs` | this file, section 5 | `AppPaths.Data`, `.Settings`, `.Updates`, `.SelfTest`; `MIC_CONTROL_HOME` override |
-| Self-update | `src\vendor\selfupdate-dotnet\`, `src\UpdateSetup.cs` | `docs\SELF_UPDATE.md` | `Updater`, `UpdateScheduler`, `UpdateApply`, `SemVer`, `Checksums`, `WebNet`, `Json` (namespace `SelfUpdate`); `AppUpdate.Config()` |
-| Settings window and tray | `src\SettingsWindow.cs` | `docs\USER_GUIDE.md` | owns the `Updater` and the `UpdateScheduler` and passes every status to the title bar and the update window |
+| Self-update | `src\vendor\selfupdate-dotnet\`, `src\UpdateSetup.cs`, `src\UpdateHost.cs` | `docs\SELF_UPDATE.md` | `Updater`, `UpdatePresenter` and its models, `ReleaseNotes`, `UpdateText`, `UpdateScheduler`, `UpdateApply`, `SemVer`, `Checksums`, `WebNet`, `Json` (namespace `SelfUpdate`); `AppUpdate.Config()`, `AppUpdate.Balloon()`; `UpdateHost` owns the updater, presenter, scheduler and update window |
+| Settings window and tray | `src\SettingsWindow.cs` | `docs\USER_GUIDE.md` | creates the `UpdateHost` and binds the title bar pill, the tray item and the update row of the Settings sheet to the presenter's models; shows its toasts as tray balloons |
 | Type, title bar, controls | `src\Typography.cs`, `src\Chrome.cs` | this file, section 10 | `TypeRoles`, `TitleBar`, `Segmented`, `SpringEase`, `UiScale` (in `SettingsWindow.cs`) |
-| Update window | `src\UpdateWindow.cs` | `docs\SELF_UPDATE.md`, section 8 | `UpdateWindow`, `MarkdownView`; not created in the self-test |
+| Update window | `src\UpdateWindow.cs` | `docs\SELF_UPDATE.md`, sections 8 and 9 | `UpdateWindow`, `NotesView`; not created in the self-test |
 | Indicator and styles | `src\Theme.cs`, `src\Palettes.cs` | `docs\USER_GUIDE.md` | the palettes colour the heart only |
 | Window themes | `src\Themes.cs` | this file, section 8 | `ThemeSpec`, `Themes.All`, `ThemeLook` |
 | Hotkey | `src\Keyboard.cs` | `docs\USER_GUIDE.md` | `KeyEngine` is pure logic, covered by the self-test |
 | Microphone | `src\CoreAudio.cs` | `docs\USER_GUIDE.md` | polled every 500 ms |
-| Tests | `src\Tests.cs`, `tests\UpdateTests.cs` | `docs\BUILD.md` | |
+| Tests | `src\Tests.cs`, `tests\UpdateTests.cs`, `build\e2e-update.ps1` | `docs\BUILD.md` | |
 
 ## 5. Runtime data (portable)
 
