@@ -18,7 +18,7 @@ dependencies are needed.
 | Change the hotkey | click the shortcut in the window → record or pick a key → **Apply** |
 | Open the window | double-click the tray heart, or tray menu → **Settings** |
 | Open Settings (appearance, scale, launch at login, updates) | the gear in the title bar |
-| Install an update | **Install** or **Restart to update** in the update window that opens when a new version is found (the version in the title bar or tray menu → **Restart to update** reopens it), or click the "Mic Control X.Y.Z is ready" notification |
+| Install an update | **Install** or **Restart to update** in the update window that opens when a new version is found (the version in the title bar or the update item of the tray menu reopens it), or click the "Mic Control X.Y.Z is ready" notification |
 | Quit | tray menu → **Quit** (the microphone keeps its current state) |
 
 The entire interface is in English, including the system tray, keyboard picker, tooltips and error messages.
@@ -32,9 +32,10 @@ the gear opens the Settings sheet over it (the sheet scrolls; the gear, its clos
 Minimize and Close hide the window to the tray. Double-click the tray heart to reopen it. **Quit** exits the app.
 Quitting leaves the microphone in its current state.
 
-The tray menu has **Toggle microphone**, **Settings**, the version, **Check for updates** (**Download update** or
-**Downloading update…** while a new version is known; both open the update window), **Restart to update** once a
-new version is ready (opens the update window), and **Quit**.
+The tray menu has **Toggle microphone**, **Settings**, the version, the update item and **Quit**. The update item
+reads **Check for updates** and follows the update: **Download**, **Downloading…**, **Restart to update** or **Try
+again**. While a new version is known (or its download failed) it opens the update window; otherwise it starts a
+check.
 
 ## Keyboard
 
@@ -98,10 +99,10 @@ displays a dim broken heart and a status message in Settings. The indicator has 
 
 **Launch at login** — the value stays valid across updates, because an update keeps the exe path.
 
-**Update status** — the line below the **Download updates automatically** switch shows the update status ("Mic
-Control is up to date", "Version X.Y.Z is ready to install", or the reason a check failed) and a button: **Check
-for updates** starts a check; while a new version is known (**Download**, **Show progress**, **Show update**,
-**Restart to update**) it opens the update window.
+**Update status** — the line below the **Download updates automatically** switch shows the update status ("You
+have the latest version", "Version X.Y.Z is available", "Downloading version X.Y.Z…", "Version X.Y.Z is ready to
+install", or the reason a check failed) and a button: **Check for updates** starts a check, **Download** downloads
+the new version, the percentage shows while it downloads, **Restart to update** restarts into it.
 
 ### Settings file
 
@@ -160,11 +161,11 @@ synthetic input is ignored. Its only network access is the update check and down
   `cute-mic-control_data\updates\` and verified by byte size and SHA-256 against the `SHA256SUMS` asset of the
   release.
 - When a new version is found, the update window opens: "Mic Control X.Y.Z", the installed version, the download
-  size and the release date, and the release notes (links open in the browser). **Install** downloads the version
+  size and the release date, and the release notes (https links open in the browser). **Install** downloads the version
   and restarts into it as soon as it is verified; while it downloads, a bar shows the progress. When the version
   was already downloaded automatically, the button reads **Restart to update**.
 - **Later** (or Esc) closes the window; it does not open again by itself for that version until the app restarts,
-  and the tray menu item or the update button in Settings brings it back.
+  and the version in the title bar or the update item of the tray menu brings it back.
 - When a background download finishes while the window is closed, a notification "Mic Control X.Y.Z is ready"
   appears; clicking it restarts into the update.
 - **Restart to update** closes the app; the downloaded exe waits for it to exit, replaces `MicControl.exe` in the

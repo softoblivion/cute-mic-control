@@ -28,8 +28,7 @@ class SettingsWindow : Window {
     internal ThemeLook Look=new ThemeLook(); internal List<Button> themeButtons=new List<Button>(); Forms.ContextMenuStrip menu;
     internal TitleBar TitleBar; internal Segmented scaleControl; internal bool SheetOpen;
     uint draftKey,draftMods; bool startup,quitting,ready,editing; bool? muted; bool initialized; readonly bool hidden;
-    Updater updater; UpdateScheduler scheduler; Forms.ToolStripMenuItem checkItem,restartItem; TextBlock updateText; Button updateButton; ToggleButton autoUpdateToggle; bool readyAnnounced,balloonApplies;
-    UpdateWindow updateWindow; string announcedVersion;
+    UpdateHost updates; Forms.ToolStripMenuItem updateItem; TextBlock updateText; Button updateButton; ToggleButton autoUpdateToggle; Action balloonAction;
     internal SettingsWindow(bool startHidden) {
         hidden=startHidden; Prefs=Preferences.Load();
         WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize; AllowsTransparency=true; Background=Brushes.Transparent;
@@ -45,19 +44,13 @@ class SettingsWindow : Window {
         menu=new Forms.ContextMenuStrip(); menu.ForeColor=System.Drawing.Color.FromArgb(245,243,236); menu.ShowImageMargin=false; ApplyTheme(false);
         menu.Items.Add("Toggle microphone",null,delegate { Toggle(); }); menu.Items.Add("Settings",null,delegate { OpenSettings(); }); menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(new Forms.ToolStripMenuItem(AppInfo.ProductName+" "+AppInfo.DisplayVersion) { Enabled=false });
-        checkItem=new Forms.ToolStripMenuItem("Check for updates",null,delegate { UpdateAction(); }) { Enabled=!Program.Test }; menu.Items.Add(checkItem);
-        restartItem=new Forms.ToolStripMenuItem("Restart to update",null,delegate { OpenUpdate(); }) { Visible=false }; menu.Items.Add(restartItem);
+        updateItem=new Forms.ToolStripMenuItem("Check for updates",null,delegate { if(updates!=null)updates.PillClicked(); }) { Enabled=!Program.Test }; menu.Items.Add(updateItem);
         menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add("Quit",null,delegate { Exit(); });
         tray=new Forms.NotifyIcon { Text=AppInfo.ProductName,ContextMenuStrip=menu,Visible=!Program.Test }; tray.DoubleClick+=delegate { OpenSettings(); };
-        tray.BalloonTipClicked+=delegate { if(balloonApplies)ApplyUpdate(); };
+        tray.BalloonTipClicked+=delegate { Action click=balloonAction; balloonAction=null; if(click!=null)click(); };
         if(!Program.Test) {
-            updater=new Updater(AppUpdate.Config(),null);
-            updater.AutoDownload=delegate { return Prefs.AutoDownloadUpdates; };
-            updateWindow=new UpdateWindow(updater,Look,Resources,this,ApplyUpdate);
-            updater.OnStatus=delegate(UpdateStatus s) { Dispatcher.BeginInvoke((Action)delegate { ShowUpdate(s); }); };
-            updater.OnToast=delegate(string text) { Dispatcher.BeginInvoke((Action)delegate { Balloon(AppInfo.ProductName,text,false); }); };
-            // Every 5 minutes while the app runs, longer after failed checks, skipped offline and while an update waits for the restart.
-            scheduler=new UpdateScheduler(updater);
+            updates=new UpdateHost(this,Look,Resources,delegate { return Prefs.AutoDownloadUpdates; },CommitAppearance,Exit);
+            updates.ShowToast=ShowToast; updates.Bind(ShowUpdate);
         }
         ApplyScale(false); // before the first show: the window opens at its stored scale
         poll=new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(500) }; poll.Tick+=delegate { RefreshAudio(); }; poll.Start();
@@ -70,7 +63,7 @@ class SettingsWindow : Window {
     }
     internal void Start() {
         if(!hidden)Show(); if(Prefs.Overlay)overlay.Show();
-        if(updater!=null) { updater.Startup(); updater.CheckInBackground(); scheduler.Start(); }
+        if(updates!=null)updates.Start();
     }
     static Border Line(double around) { return new Border { Height=1,Background=Theme.Brush("#14FFFFFF"),Margin=new Thickness(0,around,0,around) }; }
     void Build() {
@@ -91,7 +84,7 @@ class SettingsWindow : Window {
         for(int i=0;i<13;i++) { Ellipse star=new Ellipse { Width=i%4==0?2:1,Height=i%4==0?2:1,Fill=Look.Line,Opacity=.15 }; Canvas.SetLeft(star,20+random.Next(330)); Canvas.SetTop(star,60+random.Next(230)); atmosphere.Children.Add(star); star.BeginAnimation(OpacityProperty,new DoubleAnimation(.08,.4,TimeSpan.FromSeconds(2+random.NextDouble()*4)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,BeginTime=TimeSpan.FromSeconds(random.NextDouble()*2) }); }
         TitleBar=new TitleBar(Look,Resources,AppInfo.ProductName,AppInfo.DisplayVersion) { VerticalAlignment=VerticalAlignment.Top }; content.Children.Add(TitleBar);
         TitleBar.MouseLeftButtonDown+=delegate(object s,MouseButtonEventArgs e) { if(e.ChangedButton==MouseButton.Left)DragMove(); };
-        TitleBar.Pill.Click+=delegate { UpdateAction(); }; TitleBar.Pill.IsEnabled=!Program.Test;
+        TitleBar.Pill.Click+=delegate { if(updates!=null)updates.PillClicked(); }; TitleBar.Pill.IsEnabled=!Program.Test;
         TitleBar.Gear.Click+=delegate { if(SheetOpen)CloseSheet(); else OpenSheet(); };
         TitleBar.Minimize.Click+=delegate { HideSettings(); }; TitleBar.Close.Click+=delegate { HideSettings(); };
         StackPanel stack=new StackPanel { Margin=new Thickness(22,48,22,0),VerticalAlignment=VerticalAlignment.Top }; content.Children.Add(stack);
@@ -145,11 +138,11 @@ class SettingsWindow : Window {
         stack.Children.Add(Section("General"));
         startup=IsStartup(); startToggle=SwitchRow(stack,"Launch at login",null,startup); startToggle.Click+=delegate { if(!ready)return; try { using(RegistryKey k=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) { if(startToggle.IsChecked==true) { k.SetValue("MicControlGlow","\""+Assembly.GetExecutingAssembly().Location+"\" --startup"); k.DeleteValue("MicMuteGlow",false); } else { k.DeleteValue("MicControlGlow",false); k.DeleteValue("MicMuteGlow",false); } startup=startToggle.IsChecked==true; } } catch { startToggle.IsChecked=startup; Error("Could not update launch at login. Check your Windows permissions."); } };
         stack.Children.Add(Section("Updates"));
-        autoUpdateToggle=SwitchRow(stack,"Download updates automatically","Checked every 5 minutes; installing still needs a restart",Prefs.AutoDownloadUpdates); autoUpdateToggle.Click+=delegate { if(!ready)return; bool previous=Prefs.AutoDownloadUpdates; Prefs.AutoDownloadUpdates=autoUpdateToggle.IsChecked==true; try { Prefs.Save(); } catch { Prefs.AutoDownloadUpdates=previous; autoUpdateToggle.IsChecked=previous; Error("Could not save settings. Check folder permissions."); return; } if(Prefs.AutoDownloadUpdates && updater!=null && updater.Status.Stage==UpdateStage.Available)updater.DownloadInBackground(); };
+        autoUpdateToggle=SwitchRow(stack,"Download updates automatically","Checked every 5 minutes; installing still needs a restart",Prefs.AutoDownloadUpdates); autoUpdateToggle.Click+=delegate { if(!ready)return; bool previous=Prefs.AutoDownloadUpdates; Prefs.AutoDownloadUpdates=autoUpdateToggle.IsChecked==true; try { Prefs.Save(); } catch { Prefs.AutoDownloadUpdates=previous; autoUpdateToggle.IsChecked=previous; Error("Could not save settings. Check folder permissions."); return; } if(updates!=null)updates.Presenter.AutoDownloadChanged(Prefs.AutoDownloadUpdates); };
         Grid updateRow=new Grid { MinHeight=40,Margin=new Thickness(0,2,0,0) }; updateRow.ColumnDefinitions.Add(new ColumnDefinition()); updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width=GridLength.Auto });
         updateText=Theme.Label(Program.Test?"Updates are not checked in the self-test":"Updates are not checked yet",TypeRoles.Caption,Theme.Muted); updateText.TextWrapping=TextWrapping.Wrap; updateText.Margin=new Thickness(0,0,12,0); updateRow.Children.Add(updateText);
         updateButton=new Button { Content="Check for updates",Height=28,Padding=new Thickness(12,0,12,0),HorizontalContentAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,IsEnabled=!Program.Test }; TypeRoles.LabelS.Apply(updateButton);
-        updateButton.Click+=delegate { UpdateAction(); }; Grid.SetColumn(updateButton,1); updateRow.Children.Add(updateButton); stack.Children.Add(updateRow);
+        updateButton.Click+=delegate { if(updates!=null&&updateButton.Tag is UpdateCommand)updates.Presenter.Run((UpdateCommand)updateButton.Tag); }; Grid.SetColumn(updateButton,1); updateRow.Children.Add(updateButton); stack.Children.Add(updateRow);
     }
     internal void OpenSheet() {
         if(SheetOpen)return; SheetOpen=true; TitleBar.SetSettingsOpen(true);
@@ -228,7 +221,7 @@ class SettingsWindow : Window {
         for(int i=0;i<UiScale.Steps.Length;i++)scaleControl.SetOff(i,!UiScale.Fits(UiScale.Steps[i],layout,Edge),"Does not fit this screen");
         scaleControl.Select(Array.IndexOf(UiScale.Steps,step),keepCentre);
         if(place) { Rect a=SystemParameters.WorkArea; Left=Math.Max(a.Left,Math.Min(a.Right-Width,cx-Width/2)); Top=Math.Max(a.Top,Math.Min(a.Bottom-Height,cy-Height/2)); }
-        if(updateWindow!=null)updateWindow.SetScale(f);
+        if(updates!=null)updates.SetScale(f);
     }
     internal void ApplyAppearance(bool save) {
         sizeText.Text=Prefs.IndicatorScale+"%"; overlay.SetScale(Prefs.IndicatorScale);
@@ -312,29 +305,21 @@ class SettingsWindow : Window {
         }
     }
     static bool IsStartup() { try { using(RegistryKey k=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))return k!=null&&(k.GetValue("MicControlGlow")!=null||k.GetValue("MicMuteGlow")!=null); } catch { return false; } }
-    // While a newer version is known (offered, downloading, ready, or its download failed) the tray item, the version
-    // pill and the settings button open the update window instead of acting directly; otherwise they start a check.
-    static bool NewerKnown(UpdateStatus s) { return s.Latest!=null&&(s.Stage==UpdateStage.Available||s.Stage==UpdateStage.Downloading||s.Stage==UpdateStage.Ready||s.Stage==UpdateStage.Error); }
-    void UpdateAction() { if(updater==null)return; if(NewerKnown(updater.Status))OpenUpdate(); else updater.CheckInBackground(); }
-    void OpenUpdate() { if(updateWindow!=null&&!quitting)updateWindow.Open(); }
-    void ShowUpdate(UpdateStatus s) {
-        bool checking=s.Stage==UpdateStage.Checking,failedDownload=s.Stage==UpdateStage.Error&&s.Latest!=null;
-        updateText.Text=s.Message; updateButton.IsEnabled=!checking; TitleBar.ShowUpdate(s,Look);
-        updateButton.Content=s.Stage==UpdateStage.Ready?"Restart to update":s.Stage==UpdateStage.Available?"Download":s.Stage==UpdateStage.Downloading?"Show progress":failedDownload?"Show update":"Check for updates";
-        checkItem.Text=s.Stage==UpdateStage.Available||failedDownload?"Download update":s.Stage==UpdateStage.Downloading?"Downloading update…":"Check for updates"; checkItem.Enabled=!checking&&s.Stage!=UpdateStage.Ready; restartItem.Visible=s.Stage==UpdateStage.Ready;
-        // The update window opens by itself once per newer version in a run (never for an up-to-date or failed check);
-        // the ready balloon remains for a background download that finishes while the window is closed.
-        if(updateWindow!=null) {
-            updateWindow.ShowStatus(s);
-            if(NewerKnown(s)&&s.Stage!=UpdateStage.Error&&s.Latest!=announcedVersion) { announcedVersion=s.Latest; OpenUpdate(); }
-        }
-        if(s.Stage==UpdateStage.Ready && !readyAnnounced) { readyAnnounced=true; if(updateWindow==null||!updateWindow.IsVisible)Balloon(AppInfo.ProductName+" "+s.Latest+" is ready","Click to restart and update.",true); }
+    // The presenter's models in the three places of the settings window: the title bar pill, the tray item and the update
+    // row of the Settings sheet. The update window draws the sheet model itself (UpdateWindow.Render).
+    void ShowUpdate(UpdateView view) {
+        PanelView p=view.Panel;
+        TitleBar.ShowUpdate(view.Pill,Look);
+        updateText.Text=p.StatusLine;
+        updateButton.Content=p.RowAction.Label; updateButton.IsEnabled=p.RowAction.Enabled; updateButton.Tag=p.RowAction.Command; updateButton.ToolTip=p.RowAction.Tooltip;
+        updateItem.Text=p.Action.Label; updateItem.Enabled=p.Action.Enabled;
     }
-    void Balloon(string title,string text,bool applies) { if(quitting||!tray.Visible)return; balloonApplies=applies; tray.BalloonTipTitle=title; tray.BalloonTipText=text; tray.ShowBalloonTip(8000); }
-    void ApplyUpdate() { if(updater==null||quitting)return; CommitAppearance(); if(updater.Apply())Exit(); }
+    // A toast of the presenter ("Updated to v2.3.0", "Mic Control 2.3.0 is ready") as a tray balloon.
+    void ShowToast(UpdateToast toast) { string title,text; AppUpdate.Balloon(toast,out title,out text); Balloon(title,text,toast.Action); }
+    void Balloon(string title,string text,Action onClick) { if(quitting||!tray.Visible)return; balloonAction=onClick; tray.BalloonTipTitle=title; tray.BalloonTipText=text; tray.ShowBalloonTip(8000); }
     void HideSettings() { CommitAppearance(); CloseEditor(); CloseSheet(); Hide(); }
     void OpenSettings() { Show(); WindowState=WindowState.Normal; Activate(); shell.BeginAnimation(OpacityProperty,null); shell.Opacity=1; }
-    internal void Exit() { if(quitting)return; quitting=true; CommitAppearance(); poll.Stop(); if(scheduler!=null)scheduler.Dispose(); if(Hook!=null)Hook.Dispose(); overlay.Close(); if(updateWindow!=null)updateWindow.Shutdown(); tray.Visible=false; tray.ContextMenuStrip.Dispose(); tray.Dispose(); if(trayIcon!=null)trayIcon.Dispose(); Close(); Application.Current.Shutdown(); }
+    internal void Exit() { if(quitting)return; quitting=true; CommitAppearance(); poll.Stop(); if(updates!=null)updates.Dispose(); if(Hook!=null)Hook.Dispose(); overlay.Close(); tray.Visible=false; tray.ContextMenuStrip.Dispose(); tray.Dispose(); if(trayIcon!=null)trayIcon.Dispose(); Close(); Application.Current.Shutdown(); }
 }
 // The Scale setting: 100 / 125 / 150 / 175 / 200 % on top of Windows' own display scaling. The window content scales as
 // one LayoutTransform and the window size follows, so the logical layout stays the same at every step.

@@ -107,14 +107,15 @@ class TitleBar : Grid {
     }
     internal void SetSettingsOpen(bool open) { Gear.Tag=open?"on":null; TurnGear(); }
     void TurnGear() { RotateTransform r=(RotateTransform)((FrameworkElement)Gear.Content).RenderTransform; r.BeginAnimation(RotateTransform.AngleProperty,SpringEase.To(Gear.IsMouseOver||(string)Gear.Tag=="on"?60:0)); }
-    // The pill shows a dot while a newer version is known: accent while offered or downloading, mint when ready.
-    internal void ShowUpdate(UpdateStatus s,ThemeLook look) {
-        bool newer=s.Latest!=null&&(s.Stage==UpdateStage.Available||s.Stage==UpdateStage.Downloading||s.Stage==UpdateStage.Ready);
+    // The pill shows the presenter's PillView: a dot while a newer version is known (accent while offered, pulsing accent
+    // while downloading, mint when ready), the version text and the tooltip.
+    internal void ShowUpdate(PillView v,ThemeLook look) {
+        bool newer=v.State!=PillState.Idle;
         dot.Visibility=newer?Visibility.Visible:Visibility.Collapsed;
-        dot.Fill=s.Stage==UpdateStage.Ready?Theme.Mint:(Brush)look.Accent;
+        dot.Fill=v.State==PillState.Ready?Theme.Mint:(Brush)look.Accent;
         if(newer)Pill.Foreground=look.AccentInk; else Pill.ClearValue(Control.ForegroundProperty);
-        Pill.ToolTip=newer?(s.Stage==UpdateStage.Ready?"Version "+s.Latest+" is ready to install":"Version "+s.Latest+" is available"):"Check for updates";
-        if(s.Stage==UpdateStage.Downloading) { if(dot.Tag==null) { dot.Tag="pulse"; dot.BeginAnimation(OpacityProperty,new DoubleAnimation(1,.35,TimeSpan.FromSeconds(.7)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,EasingFunction=new SineEase() }); } }
+        version.Text=v.Text; Pill.ToolTip=v.Tooltip; System.Windows.Automation.AutomationProperties.SetName(Pill,"Version "+v.Text);
+        if(v.State==PillState.Downloading) { if(dot.Tag==null) { dot.Tag="pulse"; dot.BeginAnimation(OpacityProperty,new DoubleAnimation(1,.35,TimeSpan.FromSeconds(.7)) { AutoReverse=true,RepeatBehavior=RepeatBehavior.Forever,EasingFunction=new SineEase() }); } }
         else { dot.Tag=null; dot.BeginAnimation(OpacityProperty,null); dot.Opacity=1; }
     }
 }

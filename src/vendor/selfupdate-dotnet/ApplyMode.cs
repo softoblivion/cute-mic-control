@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -18,8 +19,11 @@ static class UpdateApply {
     internal static int Run(string[] args,string relaunchArguments) {
         string self=SelfPath,log=Path.Combine(Path.GetDirectoryName(self),"apply.log");
         Action<string> write=delegate(string line) { try { File.AppendAllText(log,DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)+"  "+line+Environment.NewLine); } catch { } };
-        int pid; if(args.Length<3||!int.TryParse(args[1],out pid)) { write("bad arguments"); return 1; }
-        string target=Path.GetFullPath(args[2]); bool launch=Array.IndexOf(args,NoLaunchFlag)<0;
+        // Positionals are the arguments after the flag that do not start with "--" (the Python library's apply mode
+        // reads them the same way, so an exe of either kind can apply an update downloaded by the other).
+        List<string> positional=new List<string>(); for(int i=1;i<args.Length;i++)if(!args[i].StartsWith("--",StringComparison.Ordinal))positional.Add(args[i]);
+        int pid; if(positional.Count<2||!int.TryParse(positional[0],NumberStyles.Integer,CultureInfo.InvariantCulture,out pid)) { write("bad arguments"); return 1; }
+        string target=Path.GetFullPath(positional[1]); bool launch=Array.IndexOf(args,NoLaunchFlag)<0;
         write("apply "+self+" -> "+target+", waiting for pid "+pid);
         if(!WaitForExit(pid,TimeSpan.FromSeconds(120))) { write("the app did not exit within 120 s"); return 1; }
         if(!Swap(self,target,write))return 1;
