@@ -70,9 +70,9 @@ static class Theme {
   </ControlTemplate></Setter.Value></Setter>
  </Style>
  <Style x:Key='TitleButton' TargetType='Button'>
-  <Setter Property='Width' Value='30'/><Setter Property='Height' Value='28'/><Setter Property='Foreground' Value='#BDFFFFFF'/><Setter Property='Cursor' Value='Hand'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
+  <Setter Property='Width' Value='34'/><Setter Property='Height' Value='32'/><Setter Property='Foreground' Value='#BDFFFFFF'/><Setter Property='Cursor' Value='Hand'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
   <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
-   <Border x:Name='b' CornerRadius='14' Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
+   <Border x:Name='b' CornerRadius='16' Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
    <ControlTemplate.Triggers>
     <Trigger Property='Tag' Value='on'><Setter TargetName='b' Property='Background' Value='#21FFFFFF'/><Setter Property='Foreground' Value='#F5FFFFFF'/></Trigger>
     <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#21FFFFFF'/><Setter Property='Foreground' Value='#F5FFFFFF'/></Trigger>
@@ -82,7 +82,7 @@ static class Theme {
  </Style>
  <Style x:Key='CloseButton' TargetType='Button' BasedOn='{StaticResource TitleButton}'>
   <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
-   <Border x:Name='b' CornerRadius='14' Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
+   <Border x:Name='b' CornerRadius='16' Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
    <ControlTemplate.Triggers>
     <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#E5484D'/><Setter Property='Foreground' Value='White'/></Trigger>
     <Trigger Property='IsPressed' Value='True'><Setter TargetName='b' Property='Background' Value='#C93C41'/><Setter Property='Foreground' Value='White'/></Trigger>
@@ -90,9 +90,9 @@ static class Theme {
   </ControlTemplate></Setter.Value></Setter>
  </Style>
  <Style x:Key='Pill' TargetType='Button'>
-  <Setter Property='Height' Value='24'/><Setter Property='Padding' Value='9,0'/><Setter Property='Foreground' Value='#8AFFFFFF'/><Setter Property='Cursor' Value='Hand'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
+  <Setter Property='Height' Value='26'/><Setter Property='Padding' Value='9,0'/><Setter Property='Foreground' Value='#8AFFFFFF'/><Setter Property='Cursor' Value='Hand'/><Setter Property='FocusVisualStyle' Value='{DynamicResource Focus}'/>
   <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Button'>
-   <Grid><Border x:Name='b' CornerRadius='12' Background='#09FFFFFF' BorderBrush='#1AFFFFFF' BorderThickness='1'><Border.Effect><DropShadowEffect Color='Black' BlurRadius='8' ShadowDepth='2' Direction='270' Opacity='0.25'/></Border.Effect></Border>
+   <Grid><Border x:Name='b' CornerRadius='13' Background='#09FFFFFF' BorderBrush='#1AFFFFFF' BorderThickness='1'><Border.Effect><DropShadowEffect Color='Black' BlurRadius='8' ShadowDepth='2' Direction='270' Opacity='0.25'/></Border.Effect></Border>
     <ContentPresenter Margin='{TemplateBinding Padding}' VerticalAlignment='Center'/></Grid>
    <ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#17FFFFFF'/></Trigger></ControlTemplate.Triggers>
   </ControlTemplate></Setter.Value></Setter>

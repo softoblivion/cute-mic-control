@@ -23,15 +23,15 @@ class TypeRole {
 static class TypeRoles {
     // weight, size px / line height
     internal static readonly TypeRole
-        Display=new TypeRole("Display",650,20,1.2,false,false),   // sheet and window titles
-        Title=new TypeRole("Title",650,16,1.25,false,false),      // panel titles, the main button
-        Section=new TypeRole("Section",600,11,1.3,false,true),    // group headers, chips, tags (capitals)
-        Body=new TypeRole("Body",450,13,1.45,false,false),        // text, notes, hints
-        Label=new TypeRole("Label",550,12.5,1.3,false,false),     // buttons, segmented options, setting labels
-        LabelS=new TypeRole("LabelS",550,11.5,1.3,false,false),   // small buttons, compact segments
-        Caption=new TypeRole("Caption",450,11.5,1.35,false,false),// meta lines, secondary lines, status
-        Mono=new TypeRole("Mono",450,12,1.4,true,false),          // key names, codes
-        MonoS=new TypeRole("MonoS",450,11,1.3,true,false);        // the version pill
+        Display=new TypeRole("Display",650,22,1.2,false,false),   // sheet and window titles
+        Title=new TypeRole("Title",650,17,1.25,false,false),      // the app name in the title bar, panel titles, the main button
+        Section=new TypeRole("Section",600,11.5,1.3,false,true),    // group headers, chips, tags (capitals)
+        Body=new TypeRole("Body",450,14,1.45,false,false),        // text, notes, hints
+        Label=new TypeRole("Label",550,13.5,1.3,false,false),     // buttons, segmented options, setting labels
+        LabelS=new TypeRole("LabelS",550,12.5,1.3,false,false),   // small buttons, compact segments
+        Caption=new TypeRole("Caption",450,12.5,1.35,false,false),// meta lines, secondary lines, status
+        Mono=new TypeRole("Mono",450,13,1.4,true,false),          // key names, codes
+        MonoS=new TypeRole("MonoS",450,12,1.3,true,false);        // the version pill
     internal static readonly TypeRole[] All={Display,Title,Section,Body,Label,LabelS,Caption,Mono,MonoS};
     static FontFamily text,mono;
     // Created on first use, after the Application object exists (the pack:// scheme is registered by then).

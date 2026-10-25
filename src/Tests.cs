@@ -74,7 +74,7 @@ static class TestSuite {
                 foreach(TextBlock t in Descendants<TextBlock>(window)) { texts++; Assert((t.FontFamily==TypeRoles.TextFamily||t.FontFamily==TypeRoles.MonoFamily)&&sizes.Contains(t.FontSize),"text uses a type role: '"+t.Text+"' "+t.FontFamily+" "+t.FontSize); }
                 Assert(texts>30,"type roles checked on every text ("+texts+")");
                 Assert(window.TitleBar.Pill.Content!=null&&System.Windows.Automation.AutomationProperties.GetName(window.TitleBar.Pill)=="Version "+AppInfo.DisplayVersion,"title bar version pill");
-                Assert(window.TitleBar.ActualHeight==44&&(string)window.TitleBar.Gear.Tag=="on","title bar height and the gear marks the open sheet");
+                Assert(window.TitleBar.ActualHeight==52&&(string)window.TitleBar.Gear.Tag=="on","title bar height and the gear marks the open sheet");
                 int originalUi=window.Prefs.UiScale;
                 window.scaleControl.Options[2].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 ScaleTransform zoom=window.root.LayoutTransform as ScaleTransform;

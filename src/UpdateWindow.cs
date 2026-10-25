@@ -44,7 +44,7 @@ class UpdateWindow : Window {
         StackPanel heading=new StackPanel { Margin=new Thickness(0,8,40,0) }; header.Children.Add(heading);
         title=Theme.Label(AppInfo.ProductName,TypeRoles.Display,Theme.Text); title.TextTrimming=TextTrimming.CharacterEllipsis; heading.Children.Add(title);
         meta=Theme.Label("",TypeRoles.Caption,Theme.Muted); meta.TextWrapping=TextWrapping.Wrap; meta.Margin=new Thickness(0,4,0,0); heading.Children.Add(meta);
-        Button close=new Button { Style=(Style)Resources["TitleButton"],Content=Icons.Make(Icons.Close,15),HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Top,Margin=new Thickness(0,4,0,0),ToolTip="Later" };
+        Button close=new Button { Style=(Style)Resources["TitleButton"],Content=Icons.Make(Icons.Close,17),HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Top,Margin=new Thickness(0,4,0,0),ToolTip="Later" };
         System.Windows.Automation.AutomationProperties.SetName(close,"Close"); close.Click+=delegate { presenter.Later(); }; header.Children.Add(close);
         Border sheet=new Border { CornerRadius=new CornerRadius(16),Background=look.Sheet,BorderBrush=Theme.Hairline,BorderThickness=new Thickness(1),Padding=new Thickness(16,10,6,10),Margin=new Thickness(0,0,10,0) }; Grid.SetRow(sheet,1); layout.Children.Add(sheet);
         ScrollViewer scroll=new ScrollViewer { VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,12,0) }; sheet.Child=scroll;

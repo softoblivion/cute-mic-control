@@ -75,29 +75,29 @@ class Segmented : Grid {
     }
 }
 // The standard title bar of the softoblivion apps: app glyph, name and version pill on the left; one capsule with
-// settings | minimize, close on the right; the empty band between them drags the window. 44 px high.
+// settings | minimize, close on the right; the empty band between them drags the window. 52 px high.
 class TitleBar : Grid {
     internal readonly Button Pill,Gear,Minimize,Close; readonly Ellipse dot; readonly TextBlock version;
     internal TitleBar(ThemeLook look,ResourceDictionary resources,string name,string versionText) {
-        Height=44; Background=Brushes.Transparent; Margin=new Thickness(10,0,10,0);
+        Height=52; Background=Brushes.Transparent; Margin=new Thickness(12,0,10,0);
         ColumnDefinitions.Add(new ColumnDefinition()); ColumnDefinitions.Add(new ColumnDefinition { Width=GridLength.Auto });
         StackPanel left=new StackPanel { Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center }; Children.Add(left);
-        Path glyph=new Path { Data=Geometry.Parse("M 10,18.2 C 8.6,16.8 1.6,12.6 1.6,7.2 C 1.6,2.6 7.2,2 10,5.8 C 12.8,2 18.4,2.6 18.4,7.2 C 18.4,12.6 11.4,16.8 10,18.2 Z"),Width=20,Height=20,Fill=look.AccentGrad,Effect=look.GlyphGlow,IsHitTestVisible=false,Stretch=Stretch.None };
+        Path glyph=new Path { Data=Geometry.Parse("M 10,18.2 C 8.6,16.8 1.6,12.6 1.6,7.2 C 1.6,2.6 7.2,2 10,5.8 C 12.8,2 18.4,2.6 18.4,7.2 C 18.4,12.6 11.4,16.8 10,18.2 Z"),Width=20,Height=20,Fill=look.AccentGrad,Effect=look.GlyphGlow,IsHitTestVisible=false,Stretch=Stretch.None,LayoutTransform=new ScaleTransform(1.2,1.2) }; // drawn at 24 px
         left.Children.Add(glyph);
-        TextBlock title=Theme.Label(name,TypeRoles.Label,Theme.Text); title.Margin=new Thickness(8,0,0,0); title.IsHitTestVisible=false; left.Children.Add(title);
+        TextBlock title=Theme.Label(name,TypeRoles.Title,Theme.Text); title.Margin=new Thickness(9,0,0,0); title.IsHitTestVisible=false; left.Children.Add(title);
         StackPanel pillContent=new StackPanel { Orientation=Orientation.Horizontal };
         dot=new Ellipse { Width=6,Height=6,Fill=look.Accent,Margin=new Thickness(0,0,5,0),Visibility=Visibility.Collapsed,VerticalAlignment=VerticalAlignment.Center }; pillContent.Children.Add(dot);
         version=new TextBlock { Text=versionText,VerticalAlignment=VerticalAlignment.Center }; TypeRoles.MonoS.Apply(version); pillContent.Children.Add(version);
-        Pill=new Button { Style=(Style)resources["Pill"],Content=pillContent,Margin=new Thickness(10,0,0,0),VerticalAlignment=VerticalAlignment.Center,ToolTip="Check for updates" };
+        Pill=new Button { Style=(Style)resources["Pill"],Content=pillContent,Margin=new Thickness(11,0,0,0),VerticalAlignment=VerticalAlignment.Center,ToolTip="Check for updates" };
         System.Windows.Automation.AutomationProperties.SetName(Pill,"Version "+versionText); left.Children.Add(Pill);
-        Grid cluster=new Grid { Height=34,VerticalAlignment=VerticalAlignment.Center }; Grid.SetColumn(cluster,1); Children.Add(cluster);
-        cluster.Children.Add(new Border { CornerRadius=new CornerRadius(17),Background=Theme.Brush("#09FFFFFF"),BorderBrush=Theme.Brush("#1FFFFFFF"),BorderThickness=new Thickness(1),
+        Grid cluster=new Grid { Height=38,VerticalAlignment=VerticalAlignment.Center }; Grid.SetColumn(cluster,1); Children.Add(cluster);
+        cluster.Children.Add(new Border { CornerRadius=new CornerRadius(19),Background=Theme.Brush("#09FFFFFF"),BorderBrush=Theme.Brush("#1FFFFFFF"),BorderThickness=new Thickness(1),
             Effect=new System.Windows.Media.Effects.DropShadowEffect { Color=Colors.Black,BlurRadius=10,ShadowDepth=2,Direction=270,Opacity=.28 } });
         StackPanel buttons=new StackPanel { Orientation=Orientation.Horizontal,Margin=new Thickness(3) }; cluster.Children.Add(buttons);
-        Gear=Make(resources,"TitleButton",Icons.Gear,17,"Settings"); buttons.Children.Add(Gear);
-        buttons.Children.Add(new Border { Width=1,Height=15,Margin=new Thickness(3,0,3,0),Background=Theme.Brush("#24FFFFFF"),VerticalAlignment=VerticalAlignment.Center });
-        Minimize=Make(resources,"TitleButton",Icons.Minimize,15,"Minimize"); Minimize.Margin=new Thickness(0,0,2,0); buttons.Children.Add(Minimize);
-        Close=Make(resources,"CloseButton",Icons.Close,15,"Close"); buttons.Children.Add(Close);
+        Gear=Make(resources,"TitleButton",Icons.Gear,19,"Settings"); buttons.Children.Add(Gear);
+        buttons.Children.Add(new Border { Width=1,Height=17,Margin=new Thickness(3,0,3,0),Background=Theme.Brush("#24FFFFFF"),VerticalAlignment=VerticalAlignment.Center });
+        Minimize=Make(resources,"TitleButton",Icons.Minimize,17,"Minimize"); Minimize.Margin=new Thickness(0,0,2,0); buttons.Children.Add(Minimize);
+        Close=Make(resources,"CloseButton",Icons.Close,17,"Close"); buttons.Children.Add(Close);
         // The gear turns by 60 degrees on hover and while the settings sheet is open, with the bouncy spring.
         Gear.MouseEnter+=delegate { TurnGear(); }; Gear.MouseLeave+=delegate { TurnGear(); };
     }

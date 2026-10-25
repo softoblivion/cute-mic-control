@@ -124,12 +124,12 @@ class SettingsWindow : Window {
     }
     // The Settings sheet: opened by the gear, closed by the gear, its close button or Esc.
     void BuildSheet(Grid content) {
-        sheet=new Grid { Visibility=Visibility.Collapsed,Background=Look.Scrim,Margin=new Thickness(0,44,0,0) }; content.Children.Add(sheet);
+        sheet=new Grid { Visibility=Visibility.Collapsed,Background=Look.Scrim,Margin=new Thickness(0,52,0,0) }; content.Children.Add(sheet);
         sheet.MouseLeftButtonDown+=delegate(object s,MouseButtonEventArgs e) { if(e.OriginalSource==sheet)CloseSheet(); };
         sheetPanel=new Border { CornerRadius=new CornerRadius(20),Margin=new Thickness(10,2,10,10),Background=Look.Sheet,BorderThickness=new Thickness(1),BorderBrush=Theme.Hairline,RenderTransform=new TranslateTransform(),Padding=new Thickness(18,10,6,14) }; sheet.Children.Add(sheetPanel);
         Grid layout=new Grid(); sheetPanel.Child=layout; layout.RowDefinitions.Add(new RowDefinition { Height=GridLength.Auto }); layout.RowDefinitions.Add(new RowDefinition());
         Grid title=new Grid { Margin=new Thickness(0,0,8,2) }; title.Children.Add(Theme.Label("Settings",TypeRoles.Display,Theme.Text));
-        Button close=new Button { Style=(Style)Resources["TitleButton"],Content=Icons.Make(Icons.Close,15),HorizontalAlignment=HorizontalAlignment.Right,ToolTip="Close" }; System.Windows.Automation.AutomationProperties.SetName(close,"Close settings");
+        Button close=new Button { Style=(Style)Resources["TitleButton"],Content=Icons.Make(Icons.Close,17),HorizontalAlignment=HorizontalAlignment.Right,ToolTip="Close" }; System.Windows.Automation.AutomationProperties.SetName(close,"Close settings");
         close.Click+=delegate { CloseSheet(); }; title.Children.Add(close); layout.Children.Add(title);
         ScrollViewer scroll=new ScrollViewer { VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,12,0) }; Grid.SetRow(scroll,1); layout.Children.Add(scroll);
         StackPanel stack=new StackPanel(); scroll.Content=stack;
@@ -179,10 +179,10 @@ class SettingsWindow : Window {
         UniformGrid row=new UniformGrid { Columns=Themes.All.Length,Rows=1,Height=32,Margin=new Thickness(-2,8,-2,8) }; System.Windows.Automation.AutomationProperties.SetName(row,"Theme"); parent.Children.Add(row);
         for(int i=0;i<Themes.All.Length;i++) {
             ThemeSpec theme=Themes.All[i]; int index=i;
-            Button chip=new Button { Height=32,Padding=new Thickness(4,0,6,0),Margin=new Thickness(2,0,2,0),HorizontalContentAlignment=HorizontalAlignment.Left,Background=Theme.Brush("#0DFFFFFF"),BorderBrush=Brushes.Transparent,Tag=i };
+            Button chip=new Button { Height=32,Padding=new Thickness(3,0,3,0),Margin=new Thickness(2,0,2,0),HorizontalContentAlignment=HorizontalAlignment.Center,Background=Theme.Brush("#0DFFFFFF"),BorderBrush=Brushes.Transparent,Tag=i };
             System.Windows.Automation.AutomationProperties.SetName(chip,theme.Label+" theme");
             StackPanel contents=new StackPanel { Orientation=Orientation.Horizontal }; contents.Children.Add(Swatch(theme));
-            TextBlock name=Theme.Label(theme.Label,TypeRoles.LabelS,Theme.Ink2); name.Margin=new Thickness(5,0,0,0); name.TextTrimming=TextTrimming.CharacterEllipsis; contents.Children.Add(name); chip.Content=contents;
+            TextBlock name=Theme.Label(theme.Label,TypeRoles.LabelS,Theme.Ink2); name.Margin=new Thickness(4,0,0,0); name.TextTrimming=TextTrimming.CharacterEllipsis; contents.Children.Add(name); chip.Content=contents;
             chip.Click+=delegate { SelectTheme(index); };
             chip.KeyDown+=delegate(object s,KeyEventArgs e) { int step=e.Key==Key.Right||e.Key==Key.Down?1:e.Key==Key.Left||e.Key==Key.Up?-1:0; if(step==0)return; int next=(index+step+Themes.All.Length)%Themes.All.Length; themeButtons[next].Focus(); SelectTheme(next); e.Handled=true; };
             row.Children.Add(chip); themeButtons.Add(chip);
@@ -242,11 +242,11 @@ class SettingsWindow : Window {
     }
     void BuildEditor() {
         editor=new Grid { Visibility=Visibility.Collapsed,Background=Look.Scrim }; root.Children.Add(editor);
-        panel=new Border { CornerRadius=new CornerRadius(20),Margin=new Thickness(11,46,11,11),Background=Look.Sheet,BorderThickness=new Thickness(1),BorderBrush=Theme.Hairline,RenderTransform=new TranslateTransform(),Padding=new Thickness(18,10,18,16) }; editor.Children.Add(panel);
+        panel=new Border { CornerRadius=new CornerRadius(20),Margin=new Thickness(11,54,11,11),Background=Look.Sheet,BorderThickness=new Thickness(1),BorderBrush=Theme.Hairline,RenderTransform=new TranslateTransform(),Padding=new Thickness(18,10,18,16) }; editor.Children.Add(panel);
         Grid layout=new Grid(); panel.Child=layout; layout.RowDefinitions.Add(new RowDefinition { Height=GridLength.Auto }); layout.RowDefinitions.Add(new RowDefinition()); layout.RowDefinitions.Add(new RowDefinition { Height=GridLength.Auto });
         StackPanel top=new StackPanel(); layout.Children.Add(top);
         Grid title=new Grid { Margin=new Thickness(0,0,0,10) }; title.Children.Add(Theme.Label("Hotkey",TypeRoles.Display,Theme.Text));
-        Button cancel=new Button { Style=(Style)Resources["TitleButton"],Content=Icons.Make(Icons.Close,15),HorizontalAlignment=HorizontalAlignment.Right,ToolTip="Close" }; System.Windows.Automation.AutomationProperties.SetName(cancel,"Close hotkey editor");
+        Button cancel=new Button { Style=(Style)Resources["TitleButton"],Content=Icons.Make(Icons.Close,17),HorizontalAlignment=HorizontalAlignment.Right,ToolTip="Close" }; System.Windows.Automation.AutomationProperties.SetName(cancel,"Close hotkey editor");
         cancel.Click+=delegate { CloseEditor(); }; title.Children.Add(cancel); top.Children.Add(title);
         record=new Button { Height=36,HorizontalContentAlignment=HorizontalAlignment.Center }; captureText=Theme.Label("Record a shortcut",TypeRoles.Label,Theme.Text); record.Content=captureText;
         record.ToolTip="Click, then press a key or shortcut. Close this panel to cancel.";
