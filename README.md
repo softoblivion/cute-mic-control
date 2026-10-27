@@ -69,8 +69,6 @@
 | Document | What it covers |
 |---|---|
 | [User guide](docs/USER_GUIDE.md) | Usage, hotkey, settings, microphone behaviour, data folder, updates, FAQ |
-| [Architecture](docs/ARCHITECTURE.md) | Stack, layout, modules, runtime data, window themes |
-| [Self-update](docs/SELF_UPDATE.md) | Update check, verified download, apply mode, failure handling, update window |
 | [Build](docs/BUILD.md) | Toolchain, build, tests, environment variables, releasing |
 | [Release notes](docs/releases/) | What changed in every version |
 | [Third-party components](docs/THIRD_PARTY.md) | What the app uses from Windows, with licences |
