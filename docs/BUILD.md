@@ -16,7 +16,7 @@ Steps: compile `tests\UpdateTests.cs` with `src\Paths.cs`, `src\UpdateSetup.cs`,
 library `src\vendor\selfupdate-dotnet\*.cs` into `obj\tests\MicControl.Tests.exe` and run it (a failure stops the
 build), write the fonts of `src\fonts\*.ttf` into `obj\MicControl.g.resources` (keys `fonts/<file name>` in lower
 case, the resource set WPF reads `pack://application:,,,/fonts/` from), compile `src\*.cs` and the library into
-`release\MicControl.exe` with that resource (WinExe, AnyCPU, about 330 KB), write `release\SHA256SUMS`
+`release\MicControl.exe` with that resource (WinExe, AnyCPU, about 420 KB), write `release\SHA256SUMS`
 (`<sha256 lowercase>  MicControl.exe`, LF).
 
 The update library is not edited here: its copy in `src\vendor\selfupdate-dotnet\` is synced from the library's own
@@ -33,10 +33,10 @@ build\make-fonts.py <folder with Sora-latin.woff2 and GeistMono-Variable.woff2> 
 ## 3. Tests
 
 - Update logic: run by every build (section 2). Output: one `PASS` / `FAIL` line per test and a total.
-- Self-test of the app (keyboard engine, settings, live window, hook, microphone toggle, embedded faces, every text
-  on a type role, title bar, Settings sheet, Scale on content and window, the spring of the scale thumb, rendered
-  previews at 2x, which are also the README screenshots in `docs\assets\`):
-  quit the running app, then
+- Self-test of the app (keyboard engine, settings, hook, embedded faces, every text on a type role, title bar,
+  Settings sheet, Scale on content and window, the spring of the scale thumb; the main window on the real devices
+  and on a fixed sample; the audio engine; rendered previews at 2x, some of which are the README screenshots in
+  `docs\assets\`): quit the running app, then
 
   ```powershell
   $env:MIC_CONTROL_HOME = "$env:TEMP\mic-control-selftest"
@@ -44,7 +44,32 @@ build\make-fonts.py <folder with Sora-latin.woff2 and GeistMono-Variable.woff2> 
   Get-Content "$env:TEMP\mic-control-selftest\self-test\self-test.txt"
   ```
 
-  The self-test toggles the microphone once and restores it. PNG previews land in the same folder.
+  It runs about 30 s and ends with one `PASS` / `FAIL` line per group.
+  - Main window on the real devices, for each card with a device: the card shows the engine's state; its mute button
+    toggles the mute and the test restores it; a slider change reaches the endpoint and is restored; the device list
+    opens with the engine's devices, the default marked, and closes; the lock button holds (also in the settings
+    file) and releases; a 60-step slider drag on a held level writes the settings file at most twice, and a refused
+    save shows its notice once; the Listen switch shows the engine's value; the meters run while the window is
+    visible and stop when it hides, the microphone release read from the Windows privacy record. Listen is never
+    written on a real device.
+  - Main window on the sample state (invented devices, levels and peaks, so no picture carries a name of the test
+    machine): card states, a Listen write, a refused write and an unavailable Listen, a refused device change and
+    its notice, the device choice by keys (or by a click when the window is not the active one) with the list
+    closing, Esc, the hold tooltips, the **Desktop indicator** switch round trip with the size row dimmed, Scale
+    200 % keeping every control in place, and the cards ending above the footer.
+  - The audio engine on the real devices: volume and mute round trips; `SetDefault` to the current default, which
+    writes all three Windows roles (console, multimedia, communications) to the device that already holds the
+    console role, and a role write refused through the test seam, which must leave the roles as they were; Listen
+    read; a foreign change undone by a held level, and a refused restore reported once; the capture peak rising
+    above 0 on a live microphone, an invalidated capture stream reopened, and the release of the capture stream; a
+    default endpoint that cannot be read or opened, which must not refresh the window in a loop.
+  - Previews: `main-live.png`, `main-muted-held-listening.png`, `main-devices.png`, `theme-<name>.png` for the four
+    themes (all from the sample state), `settings-sheet-preview.png`, `binding-preview.png`, `palettes-preview.png`,
+    `heart-active.png`, `heart-muted.png`. `docs\assets\README.md` names the preview behind each README picture.
+
+  The self-test changes the microphone and speakers mute and level once each, and on a machine whose
+  communications default differs from the default device it moves that role for the run; every change is undone,
+  also when a check throws (`MIC_CONTROL_TEST_FAULT`, section 4, proves it). PNG previews land in the same folder.
 
 ## 4. Environment variables
 
@@ -52,6 +77,7 @@ build\make-fonts.py <folder with Sora-latin.woff2 and GeistMono-Variable.woff2> 
 |---|---|
 | `MIC_CONTROL_HOME` | data folder instead of `cute-mic-control_data\` beside the exe; also disables the import of 1.0.0 profile settings |
 | `MIC_CONTROL_RELEASE_URL` | URL of a JSON document in the GitHub "latest release" format (`tag_name`, `body` (release notes, optional), `published_at` (optional), `assets[].name`, `assets[].size`, `assets[].browser_download_url`); replaces the GitHub check (API and redirect) for update tests. 404 or unreadable -> "No release has been published yet", server down -> "No internet connection" |
+| `MIC_CONTROL_TEST_FAULT` | self-test only: `volume`, `mute` or `roles` makes the audio engine check throw right after that change, to prove that the self-test still restores volume, mute, default roles and Listen |
 
 ## 5. End-to-end update test (before every release that touches the update path)
 

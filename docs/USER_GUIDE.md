@@ -14,7 +14,12 @@ dependencies are needed.
 
 | Action | How |
 |---|---|
-| Mute / unmute | the hotkey (default **Ctrl + Alt + M**), **Mute** in the window, or **Toggle microphone** in the tray menu |
+| Mute / unmute the microphone | the hotkey (default **Ctrl + Alt + M**), the round button of the Microphone card, or **Toggle microphone** in the tray menu |
+| Mute / unmute the speakers | the round button of the Speakers card |
+| Set a level | drag or click the slider of a card, scroll over it, or use the arrow keys while it has the focus |
+| Hold a level | the lock button beside the level |
+| Change the default device | click the device name in a card and pick a device, or tray menu → **Microphone** / **Speakers** |
+| Hear the microphone | the **Listen** switch in the Microphone card |
 | Change the hotkey | click the shortcut in the window → record or pick a key → **Apply** |
 | Open the window | double-click the tray heart, or tray menu → **Settings** |
 | Open Settings (appearance, scale, launch at login, updates) | the gear in the title bar |
@@ -26,13 +31,16 @@ The entire interface is in English, including the system tray, keyboard picker, 
 The window has a title bar like the other softoblivion apps: the app name and the version on the left; Settings
 (the gear), Minimize and Close on the right. Drag the title bar to move the window. The version shows a dot while
 an update is available (mint once it is ready to install); clicking it checks for updates or opens the update
-window. The main window holds the heart, the microphone state, **Mute**, the hotkey and the **Indicator** switch;
-the gear opens the Settings sheet over it (the sheet scrolls; the gear, its close button or Esc close it).
+window. The main window holds two cards, **Microphone** and **Speakers** (see
+[Microphone and speakers](#microphone-and-speakers)), and **Quit** at the bottom; the gear opens the Settings sheet
+over it (the sheet scrolls; the gear, its close button or Esc close it). A line at the bottom left reports a change
+that failed; a click closes it, and it hides itself after 10 seconds.
 
 Minimize and Close hide the window to the tray. Double-click the tray heart to reopen it. **Quit** exits the app.
 Quitting leaves the microphone in its current state.
 
-The tray menu has **Toggle microphone**, **Settings**, the version, the update item and **Quit**. The update item
+The tray menu has **Toggle microphone**, **Microphone** and **Speakers** (the devices of each kind, a check on the
+default one; a click makes a device the default), **Settings**, the version, the update item and **Quit**. The update item
 reads **Check for updates** and follows the update: **Download**, **Downloading…**, **Restart to update** or **Try
 again**. While a new version is known (or its download failed) it opens the update window; otherwise it starts a
 check.
@@ -42,8 +50,10 @@ check.
 | Key | Action |
 |---|---|
 | **Ctrl + Alt + M** | Mute or unmute the microphone (the default hotkey; any key or combination can replace it) |
-| Arrow keys | Move the theme choice while a theme chip has the focus, or the scale choice while the Scale control has it |
-| `Esc` | Close the hotkey editor or the Settings sheet; in the update window: the same as **Later** |
+| Arrow keys | Move a level by 1 while its slider has the focus; move the theme choice while a theme chip has the focus, or the scale choice while the Scale control has it |
+| `Page Up` / `Page Down`, `Home` / `End` | Move a level by 10, or to 0 / 100, while its slider has the focus |
+| `Up` / `Down`, `Enter` | Move through an open device list and choose the device |
+| `Esc` | Close the device list, the hotkey editor or the Settings sheet; in the update window: the same as **Later** |
 
 **Changing the hotkey** — in Settings, click the current shortcut. Click the top field to record a key or
 combination, or search the key list and select Ctrl, Alt, Shift and Win modifiers. Click **Apply** to save. Until
@@ -63,8 +73,8 @@ and toggle on release only when they were not used in another shortcut.
 | Setting | Where | Meaning |
 |---|---|---|
 | **Hotkey** | window | The shortcut that mutes and unmutes the microphone (see [Keyboard](#keyboard)). |
-| **Indicator** | window | Show or hide the heart in the top-left corner of the primary display. It stays above ordinary windows and lets clicks pass through. |
-| **Indicator size** | Settings → Appearance | **50% to 200%**, in steps of 5%; the default is 100%. Changes preview immediately on the desktop and save automatically. Size includes the transparent area used by the glow; the heart and glow scale together. |
+| **Desktop indicator** | Settings → Appearance | Show or hide the heart in the top-left corner of the primary display. It stays above ordinary windows and lets clicks pass through. |
+| **Indicator size** | Settings → Appearance | **50% to 200%**, in steps of 5%; the default is 100%; dimmed while the desktop indicator is off. Changes preview immediately on the desktop and save automatically. Size includes the transparent area used by the glow; the heart and glow scale together. |
 | **Theme** | Settings → Appearance | The background colour and accent of the window: **Dusk**, **Nova**, **Frost** or **Bloom** (the default). |
 | **Color palette** | Settings → Appearance | One of five coordinated on / off colour pairs for the heart; the default is Nebula. |
 | **Scale** | Settings → Appearance | Size of the window and its text: **100 %**, **125 %**, **150 %**, **175 %** or **200 %** on top of the Windows display scaling; the default is 100 %. |
@@ -78,13 +88,16 @@ example on a smaller monitor), the window opens at the largest step that fits an
 larger screen. The update window follows the same scale.
 
 **Theme** — **Dusk** (cobalt with a coral accent), **Nova** (violet with an ember accent), **Frost** (ice blue with
-a lilac accent) and **Bloom** (magenta with a mint accent). The accent colours the Mute button, the slider, the
-switches, the shortcut and the selection in the key list; the theme does not change the heart indicator. A choice
+a lilac accent) and **Bloom** (magenta with a mint accent). The accent colours the level sliders and meters, the
+speakers button, the hold buttons, the switches, the shortcut, the default device in the device list and the
+selection in the key list; the colour palette, not the theme, colours the live microphone button and the heart
+indicator. A choice
 applies at once with a short colour fade and is saved. The same four themes exist in the other softoblivion
 desktop apps.
 
-**Color palette** — the left swatch is microphone on; the right is microphone off. Gradients, glow, the large heart
-preview and the tray icon all use the selected palette. Palette changes fade smoothly and save automatically.
+**Color palette** — the left swatch is microphone on; the right is microphone off. The heart indicator, the large
+heart preview, the tray icon, the microphone button and the Live / Muted state of the cards all use the selected
+palette. Palette changes fade smoothly and save automatically.
 
 | Palette | Microphone on | Microphone off |
 | --- | --- | --- |
@@ -94,8 +107,8 @@ preview and the tray icon all use the selected palette. Palette changes fade smo
 | Ember | Amber | Coral |
 | Lunar | Pearl | Muted lilac |
 
-A whole heart with a double pulse and expanding glow means on. A broken heart means off. An unavailable device
-displays a dim broken heart and a status message in Settings. The indicator has no text or background panel.
+A whole heart with a double pulse and expanding glow means on. A broken heart means off. Without a microphone
+the heart is dim and broken, and the Microphone card reads **No microphone**. The indicator has no text or background panel.
 
 **Launch at login** — the value stays valid across updates, because an update keeps the exe path.
 
@@ -117,16 +130,54 @@ Settings are stored in `cute-mic-control_data\settings.xml` next to the exe and 
 | `palette` | `0` | 0 Nebula, 1 Aurora, 2 Glacier, 3 Ember, 4 Lunar |
 | `autoDownloadUpdates` | `True` | Download a new version in the background; installing is always a click on **Restart to update** |
 | `ui_scale` | `100` | Scale of the window in percent: 100, 125, 150, 175 or 200 (other numbers snap to the nearest step) |
+| `locks` | none | Held levels: `<device id>=<percent>` pairs separated by `\|`, one per held device |
 
 **Launch at login** is not in the file: it is the value `MicControlGlow` under
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; changing the setting also removes the legacy `MicMuteGlow`
 value.
 
-## Microphone behavior
+## Microphone and speakers
 
-The app controls the system mute state of the **default Windows input device** through Core Audio. State is
-checked every 500 ms, including external changes (a mute from the Windows sound settings or a headset button) and
-default-device changes.
+The window shows the **default Windows input device** in the Microphone card and the **default output device** in
+the Speakers card, and changes them through Core Audio, the same settings the Windows sound settings change. A
+change made elsewhere (the Windows sound settings, a headset button, another app, a new default device) shows up in
+the window, the tray icon and the heart at once.
+
+Each card has, from left to right and top to bottom:
+
+- **The round button** mutes and unmutes the device. The microphone button is filled with the palette's on colour
+  while the microphone is live and shows a struck-through microphone when it is muted; the speakers button shows a
+  cross instead of the sound waves when they are muted. The state also reads at the top right of the card: **Live**
+  or **Muted** for the microphone, **On** or **Muted** for the speakers.
+- **The device name** opens the list of the devices of that kind; the default one is marked. Click a device to make
+  it the Windows default for that kind, for every use: Windows keeps a separate "default communications device"
+  that calling and voice apps use, and the chosen device becomes that one too, so a call moves to it as well (the
+  tray menu's **Microphone** and **Speakers** lists do the same). **Windows sound settings** at the bottom opens the
+  Windows page, where the communications default can still be set apart. Esc, a click outside the list or on the
+  name again closes it.
+- **The level slider** sets the volume from 0 to 100 (the number at its right). The row of segments under it is a
+  live peak meter of the device; the segments at the right end turn red when the sound comes close to the top, and
+  the segments turn grey while the device is muted.
+- **The lock button** holds the level: while it is held (the lock is closed and the number takes the accent colour),
+  a change of the level by Windows, a driver or another app is undone within a fraction of a second, and the lock
+  shakes once to show it. Moving the slider in the window moves the held level. A click releases it. Held levels are
+  kept per device in the settings file and apply again after a restart, and whenever that device becomes the
+  default again. When Windows refuses to put a held level back, the window reports "Could not hold the level." once,
+  and the hold goes on trying.
+
+The Microphone card also holds the **Hotkey** (see [Keyboard](#keyboard)) and **Listen**: the Windows option
+"Listen to this device" of the microphone, which plays it through the speakers so you hear how you sound. Use it
+with headphones; with speakers it can feed back. When the microphone does not offer the option, the switch is
+dimmed and reads "Not available for this device".
+
+Without a device of a kind the card reads **No microphone** or **No output device** and its controls are dimmed.
+A change that Windows refuses is reported in the line at the bottom left of the window.
+
+**The level meter and the microphone-in-use icon** — Windows gives the microphone's level only to an app that
+opens the microphone. So while the window is open the app opens it, and Windows shows its microphone-in-use icon in
+the taskbar and lists Mic Control under the apps that used the microphone. The app reads only the peak level and
+records nothing; when the window closes to the tray, the microphone is released and the icon goes away. The
+speakers meter needs no such access.
 
 ## Data and privacy
 
@@ -135,14 +186,15 @@ user profile. The environment variable `MIC_CONTROL_HOME` replaces that folder (
 
 | Path | Content |
 |---|---|
-| `settings.xml` | Shortcut, indicator, theme, palette, scale, update switch (see [Settings file](#settings-file)) |
+| `settings.xml` | Shortcut, indicator, theme, palette, scale, update switch, held levels (see [Settings file](#settings-file)) |
 | `updates\` | Downloaded versions and the update log `apply.log` |
 | `self-test\` | Report and previews of `MicControl.exe --self-test` ([BUILD.md](BUILD.md)) |
 
 Outside that folder the app writes only the launch-at-login value in the registry (see
 [Settings file](#settings-file)). Moving the exe together with its data folder moves the whole installation.
 
-The app does not record audio or log keystrokes. Keyboard state is held only in memory to detect the shortcut;
+The app does not record audio or log keystrokes; while the window is open it reads the microphone's peak level for
+the meter and nothing else (see [Microphone and speakers](#microphone-and-speakers)). Keyboard state is held only in memory to detect the shortcut;
 synthetic input is ignored. Its only network access is the update check and download from GitHub.
 
 > [!TIP]
@@ -182,10 +234,15 @@ synthetic input is ignored. Its only network access is the update check and down
 **A key does not work as the hotkey.** Fn, hardware-specific buttons and protected system shortcuts such as
 Ctrl+Alt+Delete may not reach the app. Some media-key drivers use a different input path.
 
-**Another app still hears me, or does not hear me.** If another app uses a different microphone, select the same
-device in Windows or that app. An app's internal mute is separate from Windows system mute.
+**Another app still hears me, or does not hear me.** If another app uses a different microphone, make that
+device the default in the Microphone card, or select the default device in that app. An app's internal mute is separate from Windows system mute.
 
 **The heart is missing over a game.** The overlay may not appear above exclusive fullscreen games.
+
+**Windows shows that the microphone is in use.** That is the level meter while the window is open; close the window
+to the tray and the icon goes away (see [Microphone and speakers](#microphone-and-speakers)).
+
+**A level keeps jumping back.** It is held: click the closed lock beside it to release it.
 
 **How do I move the app?** Disable **Launch at login**, quit, move `MicControl.exe` together with
 `cute-mic-control_data\`, start it and enable the setting again.
