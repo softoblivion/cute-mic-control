@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -29,6 +30,14 @@ static class Program {
 class Preferences {
     internal uint Modifiers=3,Key=77; internal bool Overlay=true,AutoDownloadUpdates=true;
     internal int IndicatorScale=100,PaletteIndex=0,UiScale=MicControl.UiScale.Default; internal string Theme=Themes.Default;
+    internal Dictionary<string,int> Locks=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase); // endpoint id -> volume lock in percent
+    // Volume locks in one attribute: locks="id=percent|id=percent"; '|' and '=' never occur in an endpoint id. A broken pair is skipped.
+    internal static Dictionary<string,int> ParseLocks(string text) {
+        Dictionary<string,int> locks=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase); if(string.IsNullOrEmpty(text))return locks;
+        foreach(string pair in text.Split('|')) { int at=pair.LastIndexOf('='),percent; string id=at>0?pair.Substring(0,at).Trim():""; if(id.Length>0&&id.IndexOf('=')<0&&int.TryParse(pair.Substring(at+1),out percent)&&percent>=0&&percent<=100)locks[id]=percent; }
+        return locks;
+    }
+    internal static string FormatLocks(Dictionary<string,int> locks) { return locks==null?"":string.Join("|",locks.Where(l=>!string.IsNullOrEmpty(l.Key)&&l.Key.IndexOf('|')<0&&l.Key.IndexOf('=')<0&&l.Value>=0&&l.Value<=100).Select(l=>l.Key+"="+l.Value).ToArray()); }
     internal static string PathName { get { return AppPaths.Settings; } }
     // Portable file first; otherwise import the profile settings of 1.0.0 once (never when MIC_CONTROL_HOME redirects the data).
     internal static Preferences Load() {
@@ -46,6 +55,7 @@ class Preferences {
             bool auto; if(bool.TryParse(d.DocumentElement.GetAttribute("autoDownloadUpdates"),out auto))p.AutoDownloadUpdates=auto;
             string theme=d.DocumentElement.GetAttribute("theme"); if(Themes.IsKnown(theme))p.Theme=theme;
             int ui; if(int.TryParse(d.DocumentElement.GetAttribute("ui_scale"),out ui))p.UiScale=MicControl.UiScale.Normalize(ui);
+            p.Locks=ParseLocks(d.DocumentElement.GetAttribute("locks"));
         } catch { } return p;
     }
     internal void Save() { Save(PathName); }
@@ -53,6 +63,7 @@ class Preferences {
         Directory.CreateDirectory(Path.GetDirectoryName(path)); XmlDocument d=new XmlDocument(); XmlElement e=d.CreateElement("MicControl"); d.AppendChild(e);
         e.SetAttribute("modifiers",Modifiers.ToString()); e.SetAttribute("key",Key.ToString()); e.SetAttribute("overlay",Overlay.ToString());
         e.SetAttribute("indicatorScale",IndicatorScale.ToString()); e.SetAttribute("palette",PaletteIndex.ToString()); e.SetAttribute("autoDownloadUpdates",AutoDownloadUpdates.ToString()); e.SetAttribute("theme",Theme); e.SetAttribute("ui_scale",UiScale.ToString());
+        string locks=FormatLocks(Locks); if(locks.Length>0)e.SetAttribute("locks",locks);
         string tmp=path+".tmp"; d.Save(tmp); if(File.Exists(path))File.Replace(tmp,path,null); else File.Move(tmp,path);
     }
     internal static string KeyName(uint mods,uint key) { return ((mods&2)!=0?"Ctrl + ":"")+((mods&1)!=0?"Alt + ":"")+((mods&4)!=0?"Shift + ":"")+((mods&8)!=0?"Win + ":"")+KeyCatalog.Name(key); }
